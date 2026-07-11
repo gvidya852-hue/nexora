@@ -62,26 +62,34 @@
 }
 
 :root {
-  --radius: 0.625rem;
+  --radius: 0.875rem;
   --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
+  --foreground: oklch(0.14 0.02 260);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
+  --card-foreground: oklch(0.14 0.02 260);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
+  --popover-foreground: oklch(0.14 0.02 260);
+  --primary: oklch(0.32 0.16 262);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.97 0.008 260);
+  --secondary-foreground: oklch(0.18 0.03 262);
+  --muted: oklch(0.97 0.006 260);
+  --muted-foreground: oklch(0.48 0.02 260);
+  --accent: oklch(0.62 0.22 258);
+  --accent-foreground: oklch(0.99 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
+  --border: oklch(0.93 0.008 260);
+  --input: oklch(0.93 0.008 260);
+  --ring: oklch(0.62 0.22 258);
+  --brand-deep: oklch(0.22 0.09 265);
+  --brand-electric: oklch(0.65 0.24 258);
+  --brand-glow: oklch(0.72 0.19 250);
+  --gradient-brand: linear-gradient(135deg, oklch(0.32 0.16 262), oklch(0.62 0.22 258));
+  --gradient-hero: radial-gradient(1200px 600px at 80% -10%, oklch(0.72 0.19 250 / 0.35), transparent 60%), radial-gradient(900px 500px at 0% 10%, oklch(0.62 0.22 258 / 0.18), transparent 60%);
+  --gradient-text: linear-gradient(135deg, oklch(0.22 0.09 265), oklch(0.55 0.24 258) 60%, oklch(0.72 0.19 250));
+  --shadow-elegant: 0 20px 60px -20px oklch(0.32 0.16 262 / 0.35);
+  --shadow-card: 0 1px 2px oklch(0.14 0.02 260 / 0.04), 0 8px 24px -12px oklch(0.14 0.02 260 / 0.12);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -140,5 +148,70 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: "Inter Tight", "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
+
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@utility text-gradient {
+  background: var(--gradient-text);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility bg-hero-glow {
+  background-image: var(--gradient-hero);
+}
+
+@utility glass {
+  background-color: color-mix(in oklab, white 70%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid color-mix(in oklab, white 60%, transparent);
+  box-shadow: var(--shadow-card);
+}
+
+@utility glass-dark {
+  background-color: color-mix(in oklab, oklch(0.14 0.02 260) 60%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid color-mix(in oklab, white 10%, transparent);
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes float-slower {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@utility animate-float {
+  animation: float-slow 6s ease-in-out infinite;
+}
+@utility animate-float-slower {
+  animation: float-slower 8s ease-in-out infinite;
+}
+@utility animate-rise {
+  animation: rise 0.7s ease-out both;
+}
+@utility shimmer-border {
+  background: linear-gradient(90deg, transparent, oklch(0.62 0.22 258 / 0.4), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 3s linear infinite;
 }
