@@ -790,28 +790,28 @@ function Testimonials() {
 
 const FAQS = [
   {
-    q: "How long does it take to migrate my existing data?",
-    a: "Most businesses are fully migrated within 24–48 hours. Our team imports your customers, products and open invoices from Tally, Excel or any other system at no extra cost.",
+    q: "Is GST supported?",
+    a: "Yes. Nexora Billing calculates CGST, SGST and IGST automatically on every invoice and gives you a clean monthly GST summary ready for filing.",
   },
   {
-    q: "Is Nexora GST-compliant for Indian businesses?",
-    a: "Yes. Nexora generates GST-compliant invoices, handles CGST/SGST/IGST and exports GSTR-1, GSTR-3B and e-invoices directly to the GST portal.",
+    q: "Can I print invoices?",
+    a: "Absolutely. Every invoice can be printed on A4 or thermal printers, downloaded as PDF, or shared as a link with your customer.",
   },
   {
-    q: "Can I use Nexora across multiple stores or warehouses?",
-    a: "Absolutely. Multi-branch is a first-class citizen. You get consolidated reporting, stock transfers and role-based access per branch on Growth and Enterprise plans.",
+    q: "Is my data secure?",
+    a: "Your data is encrypted in transit and at rest, stored on secure cloud infrastructure with automatic daily backups. Only you and your team can access it.",
   },
   {
-    q: "Does the AI Assistant work offline or without internet?",
-    a: "The AI Assistant requires internet to answer questions, but billing and inventory continue to work offline and sync automatically when you're back online.",
+    q: "Does it work on mobile?",
+    a: "Yes. Nexora Billing is fully responsive and works beautifully on phone, tablet and desktop browsers — no install required.",
   },
   {
-    q: "Is my business data secure?",
-    a: "Data is encrypted in transit and at rest. We follow SOC 2 practices, run daily backups and offer 2FA, SSO and granular permissions on all plans.",
+    q: "Can I manage inventory?",
+    a: "Yes. Stock updates automatically with every sale and purchase, and you get low-stock alerts, purchase entries and inventory reports out of the box.",
   },
   {
-    q: "Can I cancel anytime?",
-    a: "Yes. There are no long-term contracts. Cancel or downgrade with one click, and export all your data in standard formats.",
+    q: "How does the AI assistant help?",
+    a: "Ask questions like ‘Show today's sales’ or ‘Find low-stock products’ in plain English. The AI reads your data and answers instantly — and can draft invoices and reports for you.",
   },
 ];
 
