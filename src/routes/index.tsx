@@ -322,18 +322,42 @@ function TrustedBy() {
 /* ---------- Features ---------- */
 
 const FEATURES = [
-  { icon: Sparkles, title: "AI Assistant", desc: "Ask your business anything in plain language — get instant insights, drafts and actions." },
-  { icon: Receipt, title: "Billing & GST", desc: "Compliant invoicing, GST returns and payment links, ready out of the box." },
-  { icon: Boxes, title: "Inventory", desc: "Real-time stock, low-stock alerts, transfers and cycle counts across locations." },
-  { icon: Users, title: "CRM", desc: "Unified customer profiles with purchase history, segments and follow-ups." },
-  { icon: UserCog, title: "Employees", desc: "Attendance, payroll, shifts and role-based access — all in one place." },
-  { icon: BarChart3, title: "Reports & Analytics", desc: "Live dashboards for revenue, profit, cash flow and inventory health." },
-  { icon: Building2, title: "Multi Branch", desc: "Run every store and warehouse with consolidated visibility and controls." },
-  { icon: MessageCircle, title: "WhatsApp Integration", desc: "Send invoices, reminders and receipts directly on WhatsApp Business." },
-  { icon: Cloud, title: "Cloud Backup", desc: "Automatic encrypted backups with point-in-time restore." },
-  { icon: Lock, title: "Secure Login", desc: "SSO, 2FA and granular permissions built for enterprise security." },
-  { icon: Zap, title: "Fast Performance", desc: "Millisecond response times powered by a modern edge infrastructure." },
-  { icon: Smartphone, title: "Mobile Friendly", desc: "Native-quality iOS and Android apps that stay in sync everywhere." },
+  {
+    icon: BarChart3,
+    title: "Dashboard",
+    desc: "A live business overview with the numbers that matter most.",
+    bullets: ["Business overview", "Sales analytics", "Daily & monthly reports", "Beautiful charts"],
+  },
+  {
+    icon: Users,
+    title: "Customer Management",
+    desc: "A clean CRM built around real shop-floor workflows.",
+    bullets: ["Customer database", "Purchase history", "Fast customer search", "Credit tracking"],
+  },
+  {
+    icon: Package,
+    title: "Product Management",
+    desc: "Organise your catalogue, pricing and stock with zero clutter.",
+    bullets: ["Product catalogue", "Categories", "GST support", "Pricing & stock tracking"],
+  },
+  {
+    icon: Receipt,
+    title: "Billing & Invoicing",
+    desc: "Create GST-ready invoices in seconds, from any device.",
+    bullets: ["Fast invoice creation", "Automatic GST calculation", "PDF & print invoices", "Sales history"],
+  },
+  {
+    icon: Boxes,
+    title: "Inventory Management",
+    desc: "Stock stays in sync with every sale and purchase, automatically.",
+    bullets: ["Automatic stock updates", "Low-stock alerts", "Purchase entries", "Inventory reports"],
+  },
+  {
+    icon: Sparkles,
+    title: "AI Assistant",
+    desc: "Ask questions and take actions in plain English.",
+    bullets: ["Sales & GST summaries", "Find low-stock products", "Top customers insights", "Smart business tips"],
+  },
 ];
 
 function Features() {
@@ -342,22 +366,30 @@ function Features() {
       <div className="mx-auto max-w-7xl px-6">
         <SectionHeading
           eyebrow="Platform"
-          title="Everything your business needs, in one system."
-          subtitle="Twelve modules, one login, one source of truth. No more juggling spreadsheets and disconnected tools."
+          title="Everything you need to run a modern business."
+          subtitle="Six focused modules working together — no bloat, no learning curve, no juggling spreadsheets."
         />
-        <div className="mt-16 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-16 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((f, i) => (
             <div
               key={f.title}
-              className="group relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-1 hover:border-[color:var(--brand-electric)]/40 hover:shadow-[var(--shadow-elegant)]"
+              className="group relative overflow-hidden rounded-2xl border border-border bg-card p-7 shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-1 hover:border-[color:var(--brand-electric)]/40 hover:shadow-[var(--shadow-elegant)]"
               style={{ animationDelay: `${i * 40}ms` }}
             >
               <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-[image:var(--gradient-brand)] opacity-0 blur-2xl transition-opacity duration-500 group-hover:opacity-20" />
-              <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-secondary text-[color:var(--brand-deep)]">
+              <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[image:var(--gradient-brand)] text-white shadow-[var(--shadow-elegant)]">
                 <f.icon className="h-5 w-5" />
               </div>
-              <h3 className="mt-5 text-base font-semibold text-foreground">{f.title}</h3>
+              <h3 className="mt-5 text-lg font-semibold text-foreground">{f.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{f.desc}</p>
+              <ul className="mt-5 space-y-2">
+                {f.bullets.map((b) => (
+                  <li key={b} className="flex items-start gap-2 text-sm text-foreground/80">
+                    <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-[color:var(--brand-electric)]" />
+                    {b}
+                  </li>
+                ))}
+              </ul>
             </div>
           ))}
         </div>
