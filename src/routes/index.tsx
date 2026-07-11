@@ -850,6 +850,145 @@ function FAQ() {
 
 /* ---------- Final CTA ---------- */
 
+const ROADMAP = [
+  { icon: CalendarDays, title: "Appointment Management", desc: "Bookings, calendars and reminders for service businesses." },
+  { icon: MessageCircle, title: "WhatsApp Integration", desc: "Send invoices, receipts and reminders on WhatsApp Business." },
+  { icon: Sparkles, title: "Advanced AI Automation", desc: "Automated workflows, follow-ups and daily briefings." },
+  { icon: Mic, title: "Voice Commands", desc: "Create invoices and get insights hands-free with your voice." },
+  { icon: Building2, title: "Multi-Branch Management", desc: "Consolidated reporting and stock across every location." },
+  { icon: Smartphone, title: "Mobile App", desc: "Native iOS and Android apps that stay in sync everywhere." },
+  { icon: LineChart, title: "Advanced Analytics", desc: "Cohorts, forecasts and profitability insights." },
+];
+
+function ComingSoon() {
+  return (
+    <section id="roadmap" className="relative py-24 lg:py-32">
+      <div className="mx-auto max-w-7xl px-6">
+        <SectionHeading
+          eyebrow="Roadmap"
+          title="Coming soon to Nexora Billing."
+          subtitle="Big things on the way. Here's a peek at what our team is building next."
+        />
+        <div className="mt-16 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {ROADMAP.map((r) => (
+            <div
+              key={r.title}
+              className="relative overflow-hidden rounded-2xl border border-dashed border-border bg-card/60 p-6 backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:border-[color:var(--brand-electric)]/40"
+            >
+              <div className="flex items-center justify-between">
+                <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-secondary text-[color:var(--brand-deep)]">
+                  <r.icon className="h-5 w-5" />
+                </div>
+                <span className="rounded-full border border-[color:var(--brand-electric)]/30 bg-[color:var(--brand-electric)]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--brand-electric)]">
+                  Coming soon
+                </span>
+              </div>
+              <h3 className="mt-5 text-base font-semibold text-foreground">{r.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{r.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Contact() {
+  const [sent, setSent] = useState(false);
+  return (
+    <section id="contact" className="bg-secondary/40 py-24 lg:py-32">
+      <div className="mx-auto max-w-6xl px-6">
+        <SectionHeading
+          eyebrow="Contact"
+          title="Talk to our team."
+          subtitle="Have a question, a demo request or a special ask? We usually reply within a few hours."
+        />
+        <div className="mt-16 grid grid-cols-1 gap-8 lg:grid-cols-[1fr_1.2fr]">
+          <div className="space-y-4">
+            {[
+              { icon: Mail, title: "Email us", value: "hello@nexorabilling.com" },
+              { icon: Phone, title: "Call us", value: "+91 80 4718 0000" },
+              { icon: MapPin, title: "Visit us", value: "Prestige Tower, Bengaluru 560001" },
+            ].map((c) => (
+              <div
+                key={c.title}
+                className="flex items-start gap-4 rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)]"
+              >
+                <div className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl bg-[image:var(--gradient-brand)] text-white">
+                  <c.icon className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {c.title}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{c.value}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setSent(true);
+            }}
+            className="rounded-3xl border border-border bg-card p-8 shadow-[var(--shadow-card)]"
+          >
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className="text-xs font-semibold text-foreground">Name</span>
+                <input
+                  required
+                  type="text"
+                  placeholder="Aarav Sharma"
+                  className="mt-1.5 w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground outline-none transition focus:border-[color:var(--brand-electric)] focus:ring-2 focus:ring-[color:var(--brand-electric)]/20"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-foreground">Email</span>
+                <input
+                  required
+                  type="email"
+                  placeholder="you@company.com"
+                  className="mt-1.5 w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground outline-none transition focus:border-[color:var(--brand-electric)] focus:ring-2 focus:ring-[color:var(--brand-electric)]/20"
+                />
+              </label>
+            </div>
+            <label className="mt-4 block">
+              <span className="text-xs font-semibold text-foreground">Business name</span>
+              <input
+                type="text"
+                placeholder="Sharma Traders"
+                className="mt-1.5 w-full rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground outline-none transition focus:border-[color:var(--brand-electric)] focus:ring-2 focus:ring-[color:var(--brand-electric)]/20"
+              />
+            </label>
+            <label className="mt-4 block">
+              <span className="text-xs font-semibold text-foreground">Message</span>
+              <textarea
+                required
+                rows={4}
+                placeholder="Tell us a little about your business…"
+                className="mt-1.5 w-full resize-none rounded-xl border border-border bg-background px-4 py-2.5 text-sm text-foreground outline-none transition focus:border-[color:var(--brand-electric)] focus:ring-2 focus:ring-[color:var(--brand-electric)]/20"
+              />
+            </label>
+            <button
+              type="submit"
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[image:var(--gradient-brand)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-elegant)] transition-transform duration-300 hover:-translate-y-0.5"
+            >
+              {sent ? "Message sent ✓" : "Send message"}
+              {!sent && <ArrowRight className="h-4 w-4" />}
+            </button>
+            <p className="mt-3 text-xs text-muted-foreground">
+              By submitting, you agree to be contacted by the Nexora Billing team.
+            </p>
+          </form>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ---------- Final CTA ---------- */
+
 function FinalCTA() {
   return (
     <section id="cta" className="relative overflow-hidden py-24 lg:py-32">
