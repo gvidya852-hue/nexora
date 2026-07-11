@@ -669,121 +669,57 @@ function WhyNexora() {
 
 /* ---------- Pricing ---------- */
 
-const PLANS = [
-  {
-    name: "Starter",
-    price: "₹999",
-    period: "/month",
-    tag: "For small shops just getting started",
-    features: [
-      "Up to 3 users",
-      "Billing & GST invoicing",
-      "Basic inventory",
-      "Customer directory",
-      "Standard reports",
-      "Email support",
-    ],
-    highlight: false,
-  },
-  {
-    name: "Growth",
-    price: "₹2,499",
-    period: "/month",
-    tag: "Best for growing retailers & wholesalers",
-    features: [
-      "Unlimited users",
-      "Full Billing, CRM & Inventory",
-      "Advanced Reports & Analytics",
-      "AI Business Assistant",
-      "WhatsApp Integration",
-      "Priority support",
-    ],
-    highlight: true,
-  },
-  {
-    name: "Enterprise",
-    price: "Custom",
-    period: "",
-    tag: "For multi-branch and larger teams",
-    features: [
-      "Everything in Growth",
-      "Multi-branch consolidation",
-      "Custom roles & permissions",
-      "Dedicated account manager",
-      "SSO & SOC 2 controls",
-      "24×7 premium support",
-    ],
-    highlight: false,
-  },
+const LAUNCH_FEATURES = [
+  "Dashboard & analytics",
+  "Billing & GST invoicing",
+  "Customer management",
+  "Product management",
+  "Inventory management",
+  "AI Business Assistant",
+  "Daily & monthly reports",
+  "Full GST support",
+  "Free updates forever",
 ];
 
 function Pricing() {
   return (
     <section id="pricing" className="py-24 lg:py-32">
-      <div className="mx-auto max-w-7xl px-6">
+      <div className="mx-auto max-w-5xl px-6">
         <SectionHeading
           eyebrow="Pricing"
-          title="Simple, transparent pricing."
-          subtitle="Start free for 14 days. No credit card required. Upgrade, downgrade or cancel anytime."
+          title="One simple launch price."
+          subtitle="Everything you need to run your business, at a fair price. No tiers, no upsells."
         />
-        <div className="mt-16 grid grid-cols-1 gap-6 lg:grid-cols-3">
-          {PLANS.map((p) => (
-            <div
-              key={p.name}
-              className={`relative flex flex-col rounded-3xl border p-8 transition-all duration-300 hover:-translate-y-1 ${
-                p.highlight
-                  ? "border-transparent bg-[color:var(--brand-deep)] text-white shadow-[var(--shadow-elegant)]"
-                  : "border-border bg-card"
-              }`}
-            >
-              {p.highlight && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[image:var(--gradient-brand)] px-3 py-1 text-[11px] font-semibold text-white shadow">
-                  Most popular
-                </span>
-              )}
-              <p className={`text-sm font-semibold ${p.highlight ? "text-[color:var(--brand-glow)]" : "text-[color:var(--brand-electric)]"}`}>
-                {p.name}
-              </p>
-              <p className={`mt-2 text-sm ${p.highlight ? "text-white/70" : "text-muted-foreground"}`}>
-                {p.tag}
-              </p>
-              <div className="mt-6 flex items-baseline gap-1">
-                <span className="text-4xl font-black tracking-tight">{p.price}</span>
-                <span className={p.highlight ? "text-white/60" : "text-muted-foreground"}>
-                  {p.period}
-                </span>
+        <div className="mt-16 flex justify-center">
+          <div className="relative w-full max-w-lg overflow-hidden rounded-[2rem] border border-[color:var(--brand-electric)]/30 bg-[color:var(--brand-deep)] p-10 text-white shadow-[var(--shadow-elegant)]">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(600px_300px_at_100%_0%,oklch(0.72_0.19_250/0.35),transparent_60%),radial-gradient(400px_200px_at_0%_100%,oklch(0.55_0.24_258/0.3),transparent_60%)]" />
+            <div className="relative">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[image:var(--gradient-brand)] px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-white">
+                <Sparkles className="h-3 w-3" /> Launch Offer
+              </span>
+              <h3 className="mt-5 text-2xl font-bold">Nexora Billing</h3>
+              <p className="mt-1 text-sm text-white/70">Everything included. Cancel anytime.</p>
+              <div className="mt-6 flex items-baseline gap-2">
+                <span className="text-6xl font-black tracking-tight">₹499</span>
+                <span className="text-white/60">/month</span>
               </div>
-              <ul className={`mt-6 space-y-3 text-sm ${p.highlight ? "text-white/85" : "text-foreground"}`}>
-                {p.features.map((f) => (
+              <p className="mt-1 text-xs text-white/50">Billed monthly · GST inclusive</p>
+              <ul className="mt-8 grid grid-cols-1 gap-3 text-sm text-white/90 sm:grid-cols-2">
+                {LAUNCH_FEATURES.map((f) => (
                   <li key={f} className="flex items-start gap-2.5">
-                    <Check
-                      className={`mt-0.5 h-4 w-4 flex-shrink-0 ${
-                        p.highlight ? "text-[color:var(--brand-glow)]" : "text-[color:var(--brand-electric)]"
-                      }`}
-                    />
+                    <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-[color:var(--brand-glow)]" />
                     {f}
                   </li>
                 ))}
               </ul>
-              <div className="mt-8">
-                {p.highlight ? (
-                  <a
-                    href="#cta"
-                    className="flex w-full items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-[color:var(--brand-deep)] transition-transform duration-300 hover:-translate-y-0.5"
-                  >
-                    Start Free Trial
-                  </a>
-                ) : (
-                  <a
-                    href="#cta"
-                    className="flex w-full items-center justify-center rounded-full border border-border bg-background px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary"
-                  >
-                    {p.name === "Enterprise" ? "Contact Sales" : "Start Free Trial"}
-                  </a>
-                )}
-              </div>
+              <a
+                href="#contact"
+                className="mt-8 flex w-full items-center justify-center gap-2 rounded-full bg-white px-5 py-3 text-sm font-semibold text-[color:var(--brand-deep)] transition-transform duration-300 hover:-translate-y-0.5"
+              >
+                Start Free Trial <ArrowRight className="h-4 w-4" />
+              </a>
             </div>
-          ))}
+          </div>
         </div>
       </div>
     </section>
