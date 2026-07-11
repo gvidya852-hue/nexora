@@ -44,7 +44,9 @@ function Logo({ className = "" }: { className?: string }) {
         <span className="absolute inset-0.5 rounded-[10px] bg-black/20" />
         <span className="relative text-sm font-black text-white">N</span>
       </span>
-      <span className="text-[17px] font-bold tracking-tight text-foreground">Nexora</span>
+      <span className="text-[17px] font-bold tracking-tight text-foreground">
+        Nexora <span className="text-muted-foreground font-medium">Billing</span>
+      </span>
     </a>
   );
 }
@@ -97,7 +99,8 @@ function Nav() {
     { label: "Features", href: "#features" },
     { label: "Pricing", href: "#pricing" },
     { label: "About", href: "#why" },
-    { label: "Contact", href: "#faq" },
+    { label: "FAQ", href: "#faq" },
+    { label: "Contact", href: "#contact" },
   ];
   return (
     <header
