@@ -632,58 +632,35 @@ function ChartArea() {
 /* ---------- Why Nexora ---------- */
 
 function WhyNexora() {
-  const traditional = [
-    "5–7 different tools duct-taped together",
-    "Manual reports built every week in Excel",
-    "No AI — decisions on gut feel",
-    "Complex workflows, months of training",
-    "Data trapped in silos",
-  ];
-  const nexora = [
-    "One platform for everything you run",
-    "Live dashboards, updated every minute",
-    "AI insights and actions built-in",
-    "Set up in a day, loved by your team",
-    "One unified source of truth",
+  const cards = [
+    { icon: Sparkles, title: "AI-powered workflow", desc: "Let the AI assistant handle the busywork — summaries, drafts and insights on demand." },
+    { icon: Rocket, title: "Faster billing", desc: "Create GST-ready invoices in seconds and print or share them instantly." },
+    { icon: Boxes, title: "Better inventory tracking", desc: "Every sale, return and purchase keeps your stock perfectly in sync." },
+    { icon: MousePointerClick, title: "Simple interface", desc: "A clean, uncluttered workspace your entire team can learn in a day." },
+    { icon: ShieldCheck, title: "Secure cloud platform", desc: "Encrypted at rest and in transit with automatic daily backups." },
+    { icon: Clock3, title: "Time-saving automation", desc: "Auto-updates, alerts and smart shortcuts save hours every single week." },
   ];
   return (
     <section id="why" className="py-24 lg:py-32">
       <div className="mx-auto max-w-7xl px-6">
         <SectionHeading
           eyebrow="Why Nexora"
-          title="The old way is holding your business back."
-          subtitle="Stop bolting tools together. Start operating like the best-run companies in your industry."
+          title="Why businesses choose Nexora Billing."
+          subtitle="Built for shop owners, wholesalers and growing teams who want modern software without the complexity."
         />
-        <div className="mt-16 grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <div className="rounded-3xl border border-border bg-card p-8">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-              Traditional software
-            </p>
-            <h3 className="mt-2 text-2xl font-bold text-foreground">The old stack</h3>
-            <ul className="mt-6 space-y-3">
-              {traditional.map((t) => (
-                <li key={t} className="flex items-start gap-3 text-sm text-muted-foreground">
-                  <X className="mt-0.5 h-4 w-4 flex-shrink-0 text-destructive/70" />
-                  {t}
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="relative rounded-3xl border border-[color:var(--brand-electric)]/30 bg-[color:var(--brand-deep)] p-8 text-white shadow-[var(--shadow-elegant)]">
-            <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(400px_200px_at_100%_0%,oklch(0.72_0.19_250/0.3),transparent_60%)]" />
-            <p className="relative text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--brand-glow)]">
-              Nexora Business OS
-            </p>
-            <h3 className="relative mt-2 text-2xl font-bold">The new way</h3>
-            <ul className="relative mt-6 space-y-3">
-              {nexora.map((t) => (
-                <li key={t} className="flex items-start gap-3 text-sm text-white/85">
-                  <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-[color:var(--brand-glow)]" />
-                  {t}
-                </li>
-              ))}
-            </ul>
-          </div>
+        <div className="mt-16 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {cards.map((c) => (
+            <div
+              key={c.title}
+              className="group rounded-2xl border border-border bg-card p-7 shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-1 hover:border-[color:var(--brand-electric)]/40 hover:shadow-[var(--shadow-elegant)]"
+            >
+              <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-secondary text-[color:var(--brand-deep)] transition-colors group-hover:bg-[image:var(--gradient-brand)] group-hover:text-white">
+                <c.icon className="h-5 w-5" />
+              </div>
+              <h3 className="mt-5 text-base font-semibold text-foreground">{c.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{c.desc}</p>
+            </div>
+          ))}
         </div>
       </div>
     </section>
