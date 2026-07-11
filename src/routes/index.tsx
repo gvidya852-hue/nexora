@@ -182,20 +182,20 @@ function Hero() {
             Now with Nexora AI Assistant 2.0
           </div>
           <h1 className="mt-6 text-5xl font-black leading-[1.05] tracking-tight text-foreground sm:text-6xl lg:text-7xl">
-            Run your entire business{" "}
-            <span className="text-gradient">with AI.</span>
+            AI-Powered Billing &{" "}
+            <span className="text-gradient">Business Management.</span>
           </h1>
           <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground">
-            Nexora unifies Billing, Inventory, CRM, Employees, Reports and an AI
-            Business Assistant into a single operating system — built for modern
-            retailers, wholesalers and growing teams.
+            Nexora Billing brings GST invoicing, inventory, customers, reports
+            and an AI assistant into one beautifully simple workspace — built
+            for modern Indian businesses.
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <GradientButton href="#pricing">
-              Start Free Trial <ArrowRight className="h-4 w-4" />
+              Get Started <ArrowRight className="h-4 w-4" />
             </GradientButton>
-            <GradientButton href="#cta" variant="ghost">
-              Book a Demo
+            <GradientButton href="#contact" variant="ghost">
+              Book Demo
             </GradientButton>
           </div>
           <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
