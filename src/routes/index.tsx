@@ -1030,19 +1030,19 @@ function Footer() {
   const groups = [
     {
       title: "Product",
-      links: ["Features", "Pricing", "AI Assistant", "Integrations", "Changelog"],
+      links: ["Features", "Pricing", "AI Assistant", "Roadmap"],
     },
     {
       title: "Company",
-      links: ["About", "Customers", "Careers", "Press", "Contact"],
+      links: ["About", "Blog", "Careers", "Contact"],
     },
     {
-      title: "Resources",
-      links: ["Docs", "Guides", "Blog", "Support", "Status"],
+      title: "Support",
+      links: ["Help Center", "Docs", "Community", "Status"],
     },
     {
       title: "Legal",
-      links: ["Privacy", "Terms", "Security", "DPA", "Cookies"],
+      links: ["Privacy Policy", "Terms", "Security", "GST Info"],
     },
   ];
   return (
@@ -1052,8 +1052,8 @@ function Footer() {
           <div className="col-span-2">
             <Logo />
             <p className="mt-4 max-w-xs text-sm text-muted-foreground">
-              The AI Business Operating System for modern retailers,
-              wholesalers and growing teams.
+              AI-powered billing and business management for modern Indian
+              businesses. Built with care, priced fairly.
             </p>
             <div className="mt-5 flex gap-2">
               {["X", "In", "Ig", "Yt"].map((s) => (
@@ -1088,7 +1088,7 @@ function Footer() {
           ))}
         </div>
         <div className="mt-14 flex flex-col items-start justify-between gap-4 border-t border-border pt-6 text-xs text-muted-foreground sm:flex-row sm:items-center">
-          <p>© {new Date().getFullYear()} Nexora Technologies. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} Nexora Billing. All rights reserved.</p>
           <p>Made for operators. Built with care.</p>
         </div>
       </div>
