@@ -1109,9 +1109,11 @@ function Landing() {
         <AIShowcase />
         <DashboardPreview />
         <WhyNexora />
-        <Pricing />
         <Testimonials />
+        <Pricing />
+        <ComingSoon />
         <FAQ />
+        <Contact />
         <FinalCTA />
       </main>
       <Footer />
