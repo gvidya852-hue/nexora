@@ -432,20 +432,15 @@ function SectionHeading({
 
 const CHAT: { role: "user" | "ai"; text: string }[] = [
   { role: "user", text: "Show today's sales." },
-  {
-    role: "ai",
-    text: "Today you've done ₹1,24,860 across 348 orders — up 18.4% vs yesterday. Top category: Beverages (₹42,300).",
-  },
-  { role: "user", text: "Which products need restocking?" },
-  {
-    role: "ai",
-    text: "3 SKUs are below reorder point: Amul Butter 500g, Tata Salt 1kg, Colgate MaxFresh. I can draft a PO to your default supplier.",
-  },
-  { role: "user", text: "Create a payment reminder for pending invoices." },
-  {
-    role: "ai",
-    text: "Drafted 12 reminders totalling ₹3.2L. Preview the WhatsApp message before I send?",
-  },
+  { role: "ai", text: "You've done ₹64,320 across 87 invoices today — up 12% vs yesterday. Best seller: Amul Gold 1L (42 units)." },
+  { role: "user", text: "Create an invoice for Priya Traders." },
+  { role: "ai", text: "Drafted invoice #INV-1042 for Priya Traders with 3 recent items. GST auto-calculated. Preview or send?" },
+  { role: "user", text: "Find low-stock products." },
+  { role: "ai", text: "3 items below reorder: Tata Salt 1kg (4 left), Colgate MaxFresh (6), Maggi 70g (9)." },
+  { role: "user", text: "Show top customers this month." },
+  { role: "ai", text: "Top 3: Meridian Retail (₹1.42L), Cascade Foods (₹98k), Halcyon Group (₹71k)." },
+  { role: "user", text: "GST summary for October." },
+  { role: "ai", text: "Output GST: ₹1,84,320 · Input GST: ₹92,110 · Net payable: ₹92,210. Ready for GSTR-1 export." },
 ];
 
 function AIShowcase() {
