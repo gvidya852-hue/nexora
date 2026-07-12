@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useAuth } from "../../contexts/AuthContext";
+import { useBusiness } from "../../contexts/BusinessContext";
 import { Logo } from "../../components/Logo";
 import {
   LogOut,
@@ -10,6 +11,7 @@ import {
   BarChart3,
   ChevronRight,
   Sparkles,
+  Building2,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -17,20 +19,24 @@ export const Route = createFileRoute("/_authenticated/dashboard")({
 });
 
 const comingSoonModules = [
-  { icon: Receipt, label: "GST Billing", description: "Invoices, e-invoicing & GST returns" },
-  { icon: Boxes, label: "Inventory", description: "Stock management & purchase orders" },
-  { icon: Users, label: "CRM", description: "Customers, leads & follow-ups" },
-  { icon: BarChart3, label: "Finance", description: "P&L, cash flow & reports" },
-  { icon: Sparkles, label: "AI Insights", description: "Predictive analytics & recommendations" },
+  { icon: Receipt,   label: "GST Billing",  description: "Invoices, e-invoicing & GST returns" },
+  { icon: Boxes,     label: "Inventory",    description: "Stock management & purchase orders" },
+  { icon: Users,     label: "CRM",          description: "Customers, leads & follow-ups" },
+  { icon: BarChart3, label: "Finance",      description: "P&L, cash flow & reports" },
+  { icon: Sparkles,  label: "AI Insights",  description: "Predictive analytics & recommendations" },
 ];
 
 function DashboardPage() {
   const { user, signOut } = useAuth();
+  const { business } = useBusiness();
 
   const displayName =
+    business?.owner_name ||
     (user?.user_metadata?.full_name as string | undefined) ||
     user?.email?.split("@")[0] ||
     "there";
+
+  const businessName = business?.business_name || "Your Business";
 
   const initials = displayName
     .split(" ")
@@ -38,10 +44,6 @@ function DashboardPage() {
     .join("")
     .slice(0, 2)
     .toUpperCase();
-
-  const handleSignOut = async () => {
-    await signOut();
-  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -61,7 +63,7 @@ function DashboardPage() {
             </div>
 
             <button
-              onClick={handleSignOut}
+              onClick={() => signOut()}
               className="ml-2 flex items-center gap-1.5 rounded-lg border border-input bg-background px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:border-border hover:text-foreground"
               title="Sign out"
             >
@@ -80,11 +82,18 @@ function DashboardPage() {
             Your workspace is ready
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">
-            Welcome, {displayName.split(" ")[0]} 👋
+            Welcome back, {displayName.split(" ")[0]} 👋
           </h1>
-          <p className="mt-2 text-muted-foreground">
-            Your Nexora dashboard is being set up. The modules below are coming soon.
-          </p>
+          <div className="mt-2 flex items-center gap-2 text-muted-foreground">
+            <Building2 className="h-4 w-4 shrink-0" />
+            <span className="text-sm">{businessName}</span>
+            {business?.business_type && (
+              <>
+                <span className="text-muted-foreground/40">·</span>
+                <span className="text-sm">{business.business_type}</span>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Stats placeholder */}
@@ -107,7 +116,7 @@ function DashboardPage() {
         <div>
           <h2 className="mb-4 text-lg font-semibold text-foreground">Modules</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {/* Dashboard card (current) */}
+            {/* Dashboard card (active) */}
             <div className="flex items-center gap-4 rounded-xl border border-primary/30 bg-primary/5 p-4 shadow-[var(--shadow-card)]">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[image:var(--gradient-brand)] shadow-sm">
                 <LayoutDashboard className="h-5 w-5 text-white" />
@@ -141,15 +150,6 @@ function DashboardPage() {
               </div>
             ))}
           </div>
-        </div>
-
-        {/* SQL reminder */}
-        <div className="mt-10 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          <p className="font-semibold mb-1">⚠️ Database setup required</p>
-          <p>
-            Run the SQL in <code className="rounded bg-amber-100 px-1 font-mono text-xs">supabase/schema.sql</code> in
-            your Supabase SQL Editor to create the profiles table and triggers.
-          </p>
         </div>
       </main>
     </div>
