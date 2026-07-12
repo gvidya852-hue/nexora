@@ -2869,8 +2869,6 @@ function Footer() {
 ───────────────────────────────────────────────────────────────── */
 
 function Landing() {
-  const navigate = useNavigate();
-
   // Safety net: Supabase email links land here with #access_token or #error
   // when /auth/callback isn't yet whitelisted in the Supabase redirect URLs list.
   // Use window.location.replace so the raw hash is preserved exactly as-is
