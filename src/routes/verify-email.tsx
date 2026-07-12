@@ -28,7 +28,7 @@ function VerifyEmailPage() {
       type: "signup",
       email,
       options: {
-        emailRedirectTo: `${window.location.origin}/dashboard`,
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
 
