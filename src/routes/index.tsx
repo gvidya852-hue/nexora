@@ -2869,6 +2869,19 @@ function Footer() {
 ───────────────────────────────────────────────────────────────── */
 
 function Landing() {
+  const navigate = useNavigate();
+
+  // Safety net: Supabase email links land here with #access_token or #error
+  // when /auth/callback isn't yet whitelisted in the Supabase redirect URLs list.
+  // Use window.location.replace so the raw hash is preserved exactly as-is
+  // (Supabase's client reads it directly from window.location.hash).
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash && (hash.includes("access_token=") || hash.includes("error="))) {
+      window.location.replace(`/auth/callback${hash}`);
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-background text-foreground antialiased">
       <Nav />
