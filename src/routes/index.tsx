@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowRight,
   Check,
@@ -29,6 +29,18 @@ import {
   ShoppingCart,
   Plus,
   Minus,
+} from "lucide-react";
+import {
+  UserCog,
+  Puzzle,
+  Bot,
+  Printer,
+  QrCode,
+  Scan,
+  Warehouse,
+  Landmark,
+  Zap,
+  Volume2,
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -321,80 +333,536 @@ function TrustedBy() {
 
 /* ---------- Features ---------- */
 
-const FEATURES = [
+type FeatureCategory = {
+  id: string;
+  icon: typeof Receipt;
+  title: string;
+  tagline: string;
+  desc: string;
+  items: string[];
+  preview: () => ReactNode;
+};
+
+const FEATURE_CATEGORIES: FeatureCategory[] = [
   {
-    icon: BarChart3,
-    title: "Dashboard",
-    desc: "A live business overview with the numbers that matter most.",
-    bullets: ["Business overview", "Sales analytics", "Daily & monthly reports", "Beautiful charts"],
-  },
-  {
-    icon: Users,
-    title: "Customer Management",
-    desc: "A clean CRM built around real shop-floor workflows.",
-    bullets: ["Customer database", "Purchase history", "Fast customer search", "Credit tracking"],
-  },
-  {
-    icon: Package,
-    title: "Product Management",
-    desc: "Organise your catalogue, pricing and stock with zero clutter.",
-    bullets: ["Product catalogue", "Categories", "GST support", "Pricing & stock tracking"],
-  },
-  {
+    id: "billing",
     icon: Receipt,
-    title: "Billing & Invoicing",
-    desc: "Create GST-ready invoices in seconds, from any device.",
-    bullets: ["Fast invoice creation", "Automatic GST calculation", "PDF & print invoices", "Sales history"],
+    title: "Billing & GST",
+    tagline: "Invoice at the speed of your business.",
+    desc: "GST-ready invoices, quotations, credit notes and payment tracking — with print, PDF and UPI built in.",
+    items: [
+      "GST Invoices",
+      "Quotations",
+      "Estimates",
+      "Purchase Bills",
+      "Credit Notes",
+      "Debit Notes",
+      "Recurring Invoices",
+      "Multiple Invoice Templates",
+      "Invoice History",
+      "PDF Export",
+      "Print Support",
+      "Thermal Printer Support",
+      "Digital Signature",
+      "UPI Payment QR",
+      "Razorpay Integration",
+      "Tax Reports",
+      "Payment Tracking",
+      "Outstanding Payments",
+      "Auto Payment Reminders",
+    ],
+    preview: () => <BillingPreview />,
   },
   {
+    id: "inventory",
     icon: Boxes,
     title: "Inventory Management",
-    desc: "Stock stays in sync with every sale and purchase, automatically.",
-    bullets: ["Automatic stock updates", "Low-stock alerts", "Purchase entries", "Inventory reports"],
+    tagline: "Every SKU, batch and warehouse in sync.",
+    desc: "Track unlimited products with barcodes, batches, expiry dates and multi-location stock — with smart restock suggestions.",
+    items: [
+      "Unlimited Products",
+      "Product Categories",
+      "Barcode Generation",
+      "Barcode Scanner Support",
+      "Batch Management",
+      "Expiry Date Tracking",
+      "Low Stock Alerts",
+      "Purchase Orders",
+      "Supplier Management",
+      "Warehouse Management",
+      "Multi-location Inventory",
+      "Stock Transfer",
+      "Inventory Valuation",
+      "Auto Restock Suggestions",
+      "Import from Excel",
+      "Export to Excel",
+    ],
+    preview: () => <InventoryPreview />,
   },
   {
+    id: "crm",
+    icon: Users,
+    title: "CRM",
+    tagline: "A relationship engine for repeat revenue.",
+    desc: "Customer profiles, purchase history, pipelines and loyalty — all in one operator-friendly workspace.",
+    items: [
+      "Customer Database",
+      "Customer Purchase History",
+      "Customer Notes",
+      "Sales Pipeline",
+      "Lead Management",
+      "Follow-up Reminders",
+      "Customer Segmentation",
+      "Loyalty Program",
+      "Outstanding Payment Tracking",
+      "Customer Analytics",
+    ],
+    preview: () => <CRMPreview />,
+  },
+  {
+    id: "reports",
+    icon: BarChart3,
+    title: "Reports & Analytics",
+    tagline: "The whole business, one dashboard.",
+    desc: "Daily, monthly and yearly reports with P&L, tax, revenue trends and business health at a glance.",
+    items: [
+      "Daily Sales Report",
+      "Monthly Report",
+      "Yearly Report",
+      "Profit & Loss",
+      "Revenue Analytics",
+      "Best Selling Products",
+      "Slow Moving Products",
+      "Customer Analytics",
+      "Employee Performance Reports",
+      "Tax Reports",
+      "Business Health Dashboard",
+      "Export Reports to PDF & Excel",
+    ],
+    preview: () => <ReportsPreview />,
+  },
+  {
+    id: "ai",
     icon: Sparkles,
-    title: "AI Assistant",
-    desc: "Ask questions and take actions in plain English.",
-    bullets: ["Sales & GST summaries", "Find low-stock products", "Top customers insights", "Smart business tips"],
+    title: "AI Business Assistant",
+    tagline: "An operator that never sleeps.",
+    desc: "Natural-language Q&A, forecasting, smart suggestions and workflow automations across your entire business.",
+    items: [
+      "AI Chat Assistant",
+      "Business Insights",
+      "Sales Forecasting",
+      "Inventory Forecasting",
+      "Smart Business Suggestions",
+      "Invoice Generation",
+      "AI Report Summaries",
+      "Payment Reminder Generation",
+      "Natural Language Search",
+      "Business Q&A",
+      "Smart Notifications",
+      "Workflow Recommendations",
+    ],
+    preview: () => <AIPreview />,
+  },
+  {
+    id: "finance",
+    icon: Wallet,
+    title: "Finance",
+    tagline: "Know exactly where your money is.",
+    desc: "Expenses, income, cash flow, profit and reconciliation — one financial cockpit for the whole business.",
+    items: [
+      "Expense Management",
+      "Income Tracking",
+      "Cash Flow",
+      "Profit Tracking",
+      "Tax Summary",
+      "Bank Reconciliation",
+      "Financial Dashboard",
+    ],
+    preview: () => <FinancePreview />,
+  },
+  {
+    id: "multi-branch",
+    icon: Building2,
+    title: "Multi Branch",
+    tagline: "Every outlet, one command centre.",
+    desc: "Manage multiple branches with centralised reporting, branch-wise inventory and role-based access.",
+    items: [
+      "Multiple Branch Management",
+      "Centralized Dashboard",
+      "Branch Performance Comparison",
+      "Branch-wise Inventory",
+      "Branch-wise Reports",
+      "Central Billing",
+      "Role-Based Branch Access",
+    ],
+    preview: () => <MultiBranchPreview />,
   },
 ];
 
 function Features() {
+  const [active, setActive] = useState(FEATURE_CATEGORIES[0].id);
+  const current =
+    FEATURE_CATEGORIES.find((c) => c.id === active) ?? FEATURE_CATEGORIES[0];
   return (
     <section id="features" className="relative py-24 lg:py-32">
+      <div className="pointer-events-none absolute inset-x-0 top-24 -z-10 mx-auto h-[520px] max-w-5xl bg-[image:var(--gradient-hero)] opacity-70" />
       <div className="mx-auto max-w-7xl px-6">
         <SectionHeading
-          eyebrow="Platform"
-          title="Everything you need to run a modern business."
-          subtitle="Six focused modules working together — no bloat, no learning curve, no juggling spreadsheets."
+          eyebrow="Product Features"
+          title="Everything you need to run your business."
+          subtitle="Seven deeply integrated modules — from GST billing to AI insights — engineered to work together out of the box."
         />
-        <div className="mt-16 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {FEATURES.map((f, i) => (
-            <div
-              key={f.title}
-              className="group relative overflow-hidden rounded-2xl border border-border bg-card p-7 shadow-[var(--shadow-card)] transition-all duration-300 hover:-translate-y-1 hover:border-[color:var(--brand-electric)]/40 hover:shadow-[var(--shadow-elegant)]"
-              style={{ animationDelay: `${i * 40}ms` }}
-            >
-              <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-[image:var(--gradient-brand)] opacity-0 blur-2xl transition-opacity duration-500 group-hover:opacity-20" />
-              <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-[image:var(--gradient-brand)] text-white shadow-[var(--shadow-elegant)]">
-                <f.icon className="h-5 w-5" />
+
+        {/* Category tabs */}
+        <div className="mt-14 flex flex-wrap items-center justify-center gap-2">
+          {FEATURE_CATEGORIES.map((c) => {
+            const isActive = c.id === active;
+            return (
+              <button
+                key={c.id}
+                onClick={() => setActive(c.id)}
+                className={`group inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-all duration-300 ${
+                  isActive
+                    ? "border-transparent bg-[image:var(--gradient-brand)] text-white shadow-[var(--shadow-elegant)]"
+                    : "border-border bg-card text-muted-foreground hover:-translate-y-0.5 hover:border-[color:var(--brand-electric)]/40 hover:text-foreground"
+                }`}
+              >
+                <c.icon className="h-4 w-4" />
+                {c.title}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Active category card */}
+        <div
+          key={current.id}
+          className="relative mt-10 overflow-hidden rounded-[2rem] border border-border bg-card p-6 shadow-[var(--shadow-elegant)] animate-rise sm:p-10"
+        >
+          <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-[image:var(--gradient-brand)] opacity-10 blur-3xl" />
+          <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1.05fr_1fr] lg:items-center">
+            <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background/60 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur">
+                <current.icon className="h-3.5 w-3.5 text-[color:var(--brand-electric)]" />
+                {current.title}
               </div>
-              <h3 className="mt-5 text-lg font-semibold text-foreground">{f.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{f.desc}</p>
-              <ul className="mt-5 space-y-2">
-                {f.bullets.map((b) => (
-                  <li key={b} className="flex items-start gap-2 text-sm text-foreground/80">
+              <h3 className="mt-4 text-2xl font-black tracking-tight text-foreground sm:text-3xl">
+                {current.tagline}
+              </h3>
+              <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
+                {current.desc}
+              </p>
+              <ul className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {current.items.map((item) => (
+                  <li
+                    key={item}
+                    className="group flex items-start gap-2 rounded-lg px-2 py-1.5 text-sm text-foreground/80 transition-colors hover:bg-secondary/70 hover:text-foreground"
+                  >
                     <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-[color:var(--brand-electric)]" />
-                    {b}
+                    <span>{item}</span>
                   </li>
                 ))}
               </ul>
             </div>
-          ))}
+
+            {/* Screenshot / preview */}
+            <div className="relative">
+              <div className="absolute -inset-4 -z-10 rounded-[2rem] bg-[image:var(--gradient-brand)] opacity-15 blur-2xl" />
+              <div className="rounded-2xl border border-border bg-background p-4 shadow-[var(--shadow-card)] transition-transform duration-500 hover:-translate-y-1">
+                {current.preview()}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
+  );
+}
+
+/* ---------- Feature Previews ---------- */
+
+function PreviewShell({
+  title,
+  children,
+  right,
+}: {
+  title: string;
+  right?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl bg-secondary/50">
+      <div className="flex items-center justify-between border-b border-border bg-card px-4 py-2.5">
+        <div className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-full bg-destructive/60" />
+          <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/60" />
+          <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/60" />
+        </div>
+        <p className="text-[11px] font-medium text-muted-foreground">{title}</p>
+        <div className="text-[11px] text-muted-foreground">{right}</div>
+      </div>
+      <div className="p-4">{children}</div>
+    </div>
+  );
+}
+
+function BillingPreview() {
+  return (
+    <PreviewShell title="Invoice · INV-1042" right="GST · draft">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-xs text-muted-foreground">Bill To</p>
+          <p className="mt-0.5 text-sm font-semibold text-foreground">Priya Traders</p>
+          <p className="text-[11px] text-muted-foreground">GSTIN 29ABCDE1234F1Z5</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[11px] text-muted-foreground">Total</p>
+          <p className="text-lg font-black text-foreground">₹24,780</p>
+        </div>
+      </div>
+      <div className="mt-4 space-y-2">
+        {[
+          { name: "Amul Gold 1L × 24", amt: "₹1,440" },
+          { name: "Tata Salt 1kg × 40", amt: "₹960" },
+          { name: "Maggi 70g × 60", amt: "₹840" },
+        ].map((r) => (
+          <div key={r.name} className="flex items-center justify-between rounded-lg bg-card px-3 py-2 text-xs">
+            <span className="text-foreground">{r.name}</span>
+            <span className="font-semibold text-foreground">{r.amt}</span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex items-center justify-between rounded-lg border border-dashed border-border bg-card px-3 py-2 text-[11px]">
+        <span className="text-muted-foreground">CGST 9% · SGST 9%</span>
+        <span className="font-semibold text-foreground">Auto calculated</span>
+      </div>
+      <div className="mt-4 flex items-center gap-2">
+        <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-[10px] font-semibold text-foreground">
+          <QrCode className="h-3 w-3" /> UPI QR
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-[10px] font-semibold text-foreground">
+          <Printer className="h-3 w-3" /> Thermal
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full bg-[image:var(--gradient-brand)] px-2.5 py-1 text-[10px] font-semibold text-white">
+          <Check className="h-3 w-3" /> GST ready
+        </span>
+      </div>
+    </PreviewShell>
+  );
+}
+
+function InventoryPreview() {
+  const rows = [
+    { name: "Amul Gold 1L", batch: "B-1042", stock: 128, tone: "text-emerald-600" },
+    { name: "Tata Salt 1kg", batch: "B-0921", stock: 4, tone: "text-destructive" },
+    { name: "Maggi 70g", batch: "B-1188", stock: 9, tone: "text-yellow-600" },
+    { name: "Colgate MaxFresh", batch: "B-0714", stock: 46, tone: "text-emerald-600" },
+  ];
+  return (
+    <PreviewShell title="Inventory · 1,284 SKUs" right="Live sync">
+      <div className="mb-3 flex items-center gap-2 rounded-lg bg-card px-3 py-2 text-xs">
+        <Scan className="h-4 w-4 text-muted-foreground" />
+        <span className="text-muted-foreground">Scan barcode or search…</span>
+      </div>
+      <div className="space-y-1.5">
+        {rows.map((r) => (
+          <div
+            key={r.name}
+            className="flex items-center justify-between rounded-lg bg-card px-3 py-2 text-xs"
+          >
+            <div>
+              <p className="font-semibold text-foreground">{r.name}</p>
+              <p className="text-[10px] text-muted-foreground">Batch {r.batch}</p>
+            </div>
+            <div className={`text-right text-[11px] font-bold ${r.tone}`}>
+              {r.stock} in stock
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex items-center gap-2 rounded-lg border border-dashed border-[color:var(--brand-electric)]/40 bg-[color:var(--brand-electric)]/5 px-3 py-2 text-[11px] text-foreground">
+        <Warehouse className="h-3.5 w-3.5 text-[color:var(--brand-electric)]" />
+        Auto-restock suggests <b className="ml-1">reorder 3 SKUs</b>
+      </div>
+    </PreviewShell>
+  );
+}
+
+function CRMPreview() {
+  const customers = [
+    { name: "Meridian Retail", tag: "VIP", ltv: "₹1.42L", tone: "bg-[image:var(--gradient-brand)] text-white" },
+    { name: "Cascade Foods", tag: "Loyal", ltv: "₹98k", tone: "bg-secondary text-foreground" },
+    { name: "Halcyon Group", tag: "New", ltv: "₹32k", tone: "bg-secondary text-foreground" },
+  ];
+  return (
+    <PreviewShell title="Customer 360°" right="Pipeline · Oct">
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { l: "Leads", v: "48" },
+          { l: "Deals", v: "12" },
+          { l: "Won", v: "₹6.2L" },
+        ].map((k) => (
+          <div key={k.l} className="rounded-lg bg-card p-2.5 text-center">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{k.l}</p>
+            <p className="mt-0.5 text-sm font-bold text-foreground">{k.v}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 space-y-1.5">
+        {customers.map((c) => (
+          <div key={c.name} className="flex items-center justify-between rounded-lg bg-card px-3 py-2 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="grid h-7 w-7 place-items-center rounded-full bg-[image:var(--gradient-brand)] text-[10px] font-bold text-white">
+                {c.name
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")}
+              </span>
+              <div>
+                <p className="font-semibold text-foreground">{c.name}</p>
+                <p className="text-[10px] text-muted-foreground">LTV {c.ltv}</p>
+              </div>
+            </div>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${c.tone}`}>
+              {c.tag}
+            </span>
+          </div>
+        ))}
+      </div>
+    </PreviewShell>
+  );
+}
+
+function ReportsPreview() {
+  const bars = [40, 62, 48, 74, 58, 82, 70, 92, 78, 96];
+  return (
+    <PreviewShell title="Business Health" right="Oct 2025">
+      <div className="grid grid-cols-3 gap-2">
+        {[
+          { l: "Revenue", v: "₹8.4L", d: "+12%" },
+          { l: "Profit", v: "₹2.1L", d: "+9%" },
+          { l: "Orders", v: "2,148", d: "+7%" },
+        ].map((k) => (
+          <div key={k.l} className="rounded-lg bg-card p-2.5">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{k.l}</p>
+            <p className="mt-0.5 text-sm font-bold text-foreground">{k.v}</p>
+            <p className="text-[10px] font-semibold text-emerald-600">{k.d}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 rounded-lg bg-card p-3">
+        <div className="mb-2 flex items-center justify-between text-[11px]">
+          <span className="font-semibold text-foreground">Sales trend</span>
+          <span className="text-emerald-600">+18.4%</span>
+        </div>
+        <div className="flex h-20 items-end gap-1.5">
+          {bars.map((h, i) => (
+            <div
+              key={i}
+              className="flex-1 rounded-t bg-gradient-to-t from-[color:var(--brand-electric)]/40 to-[color:var(--brand-electric)] transition-all duration-500 hover:from-[color:var(--brand-electric)]/60"
+              style={{ height: `${h}%` }}
+            />
+          ))}
+        </div>
+      </div>
+    </PreviewShell>
+  );
+}
+
+function AIPreview() {
+  return (
+    <PreviewShell title="Nexora AI · Chat" right="Online">
+      <div className="space-y-2">
+        <div className="flex justify-end">
+          <div className="max-w-[85%] rounded-2xl bg-[image:var(--gradient-brand)] px-3 py-2 text-xs text-white">
+            Forecast next month's revenue.
+          </div>
+        </div>
+        <div className="flex justify-start">
+          <div className="max-w-[85%] rounded-2xl bg-card px-3 py-2 text-xs text-foreground">
+            Based on the last 6 months, Nov trends to <b>₹9.6L (+14%)</b>. Confidence 82%.
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <div className="max-w-[85%] rounded-2xl bg-[image:var(--gradient-brand)] px-3 py-2 text-xs text-white">
+            Draft reminders for overdue invoices.
+          </div>
+        </div>
+        <div className="flex justify-start">
+          <div className="max-w-[85%] rounded-2xl bg-card px-3 py-2 text-xs text-foreground">
+            Prepared 7 personalised reminders. Send now?
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2">
+        <Bot className="h-3.5 w-3.5 text-[color:var(--brand-electric)]" />
+        <span className="text-[11px] text-muted-foreground">Ask Nexora anything…</span>
+      </div>
+    </PreviewShell>
+  );
+}
+
+function FinancePreview() {
+  return (
+    <PreviewShell title="Cash Flow · Oct" right="Reconciled">
+      <div className="grid grid-cols-2 gap-2">
+        {[
+          { l: "Income", v: "₹8,42,910", tone: "text-emerald-600" },
+          { l: "Expenses", v: "₹4,71,220", tone: "text-destructive" },
+          { l: "Profit", v: "₹3,71,690", tone: "text-foreground" },
+          { l: "Tax due", v: "₹92,210", tone: "text-foreground" },
+        ].map((k) => (
+          <div key={k.l} className="rounded-lg bg-card p-3">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{k.l}</p>
+            <p className={`mt-0.5 text-base font-bold ${k.tone}`}>{k.v}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 rounded-lg bg-card p-3">
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="font-semibold text-foreground">Bank reconciliation</span>
+          <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-emerald-600">
+            94% matched
+          </span>
+        </div>
+        <div className="mt-2 h-1.5 rounded-full bg-secondary">
+          <div className="h-full w-[94%] rounded-full bg-[image:var(--gradient-brand)]" />
+        </div>
+      </div>
+    </PreviewShell>
+  );
+}
+
+function MultiBranchPreview() {
+  const branches = [
+    { name: "Bengaluru HQ", rev: "₹3.2L", up: "+14%" },
+    { name: "Mumbai · Andheri", rev: "₹2.1L", up: "+9%" },
+    { name: "Delhi · Karol Bagh", rev: "₹1.6L", up: "+4%" },
+    { name: "Chennai · T. Nagar", rev: "₹1.5L", up: "+11%" },
+  ];
+  return (
+    <PreviewShell title="Branches · 4 active" right="Central view">
+      <div className="space-y-1.5">
+        {branches.map((b) => (
+          <div key={b.name} className="flex items-center justify-between rounded-lg bg-card px-3 py-2 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="grid h-7 w-7 place-items-center rounded-lg bg-secondary">
+                <Building2 className="h-3.5 w-3.5 text-[color:var(--brand-deep)]" />
+              </span>
+              <p className="font-semibold text-foreground">{b.name}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs font-bold text-foreground">{b.rev}</p>
+              <p className="text-[10px] font-semibold text-emerald-600">{b.up}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex items-center justify-between rounded-lg border border-dashed border-border bg-card px-3 py-2 text-[11px] text-muted-foreground">
+        <span>Central billing · role-based access</span>
+        <span className="font-semibold text-foreground">Enabled</span>
+      </div>
+    </PreviewShell>
   );
 }
 
@@ -850,44 +1318,170 @@ function FAQ() {
 
 /* ---------- Final CTA ---------- */
 
-const ROADMAP = [
-  { icon: CalendarDays, title: "Appointment Management", desc: "Bookings, calendars and reminders for service businesses." },
-  { icon: MessageCircle, title: "WhatsApp Integration", desc: "Send invoices, receipts and reminders on WhatsApp Business." },
-  { icon: Sparkles, title: "Advanced AI Automation", desc: "Automated workflows, follow-ups and daily briefings." },
-  { icon: Mic, title: "Voice Commands", desc: "Create invoices and get insights hands-free with your voice." },
-  { icon: Building2, title: "Multi-Branch Management", desc: "Consolidated reporting and stock across every location." },
-  { icon: Smartphone, title: "Mobile App", desc: "Native iOS and Android apps that stay in sync everywhere." },
-  { icon: LineChart, title: "Advanced Analytics", desc: "Cohorts, forecasts and profitability insights." },
+const ROADMAP: {
+  icon: typeof Receipt;
+  title: string;
+  desc: string;
+  items: string[];
+}[] = [
+  {
+    icon: UserCog,
+    title: "Employee Management",
+    desc: "A complete HR toolkit — attendance, payroll and performance built into your business OS.",
+    items: [
+      "Employee Profiles",
+      "Attendance",
+      "Leave Management",
+      "Payroll",
+      "Salary Management",
+      "Shift Scheduling",
+      "Departments",
+      "Performance Tracking",
+      "Employee Mobile App",
+    ],
+  },
+  {
+    icon: ShieldCheck,
+    title: "Role & Permission Management",
+    desc: "Granular access control with pre-built roles and approval workflows for every business shape.",
+    items: [
+      "Super Admin",
+      "Admin",
+      "Manager",
+      "Cashier",
+      "Sales Executive",
+      "Accountant",
+      "Warehouse Staff",
+      "Custom Roles",
+      "Custom Permissions",
+      "Activity Logs",
+      "Approval Workflows",
+    ],
+  },
+  {
+    icon: MessageCircle,
+    title: "WhatsApp Business",
+    desc: "Sell, notify and support your customers where they already spend their time — WhatsApp.",
+    items: [
+      "Send Invoices",
+      "Payment Reminders",
+      "Order Notifications",
+      "AI Customer Chat",
+      "Broadcast Messages",
+      "Order Status Updates",
+      "WhatsApp Catalog",
+      "Business Verification Support",
+    ],
+  },
+  {
+    icon: Puzzle,
+    title: "Integrations",
+    desc: "Connect Nexora to the tools, payment rails and hardware your business already uses.",
+    items: [
+      "Google Drive",
+      "Google Sheets",
+      "Microsoft Excel",
+      "Outlook",
+      "Gmail",
+      "PhonePe",
+      "Razorpay",
+      "Stripe",
+      "UPI",
+      "API Access",
+      "Webhooks",
+      "POS Machines",
+      "Thermal Printers",
+      "Barcode Scanners",
+    ],
+  },
+  {
+    icon: Smartphone,
+    title: "Mobile Apps",
+    desc: "Native Android and iOS apps to run the whole business from your pocket — even offline.",
+    items: [
+      "Android App",
+      "iOS App",
+      "Offline Mode",
+      "Push Notifications",
+      "Mobile Dashboard",
+    ],
+  },
+  {
+    icon: Bot,
+    title: "Advanced AI",
+    desc: "Specialised AI agents that handle sales, inventory, accounting, marketing and support.",
+    items: [
+      "Voice Assistant",
+      "AI Sales Agent",
+      "AI Inventory Manager",
+      "AI Accountant",
+      "AI Marketing Assistant",
+      "AI Customer Support",
+      "AI Workflow Automation",
+      "AI Document Processing",
+    ],
+  },
 ];
 
 function ComingSoon() {
   return (
-    <section id="roadmap" className="relative py-24 lg:py-32">
+    <section id="roadmap" className="relative overflow-hidden py-24 lg:py-32">
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(900px_500px_at_50%_0%,oklch(0.72_0.19_250/0.15),transparent_60%)]" />
       <div className="mx-auto max-w-7xl px-6">
-        <SectionHeading
-          eyebrow="Roadmap"
-          title="Coming soon to Nexora Billing."
-          subtitle="Big things on the way. Here's a peek at what our team is building next."
-        />
-        <div className="mt-16 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {ROADMAP.map((r) => (
+        <div className="mx-auto max-w-2xl text-center">
+          <span className="inline-flex items-center gap-2 rounded-full border border-[color:var(--brand-electric)]/30 bg-[color:var(--brand-electric)]/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--brand-electric)]">
+            <Zap className="h-3 w-3" /> On the roadmap
+          </span>
+          <h2 className="mt-4 text-3xl font-black tracking-tight text-foreground sm:text-4xl lg:text-5xl">
+            Coming soon to <span className="text-gradient">Nexora Billing</span>.
+          </h2>
+          <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
+            The platform is evolving fast. Here's a transparent look at what's
+            being built next — every feature below is <b>planned</b> and not yet
+            available.
+          </p>
+        </div>
+
+        <div className="mt-16 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {ROADMAP.map((r, i) => (
             <div
               key={r.title}
-              className="relative overflow-hidden rounded-2xl border border-dashed border-border bg-card/60 p-6 backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:border-[color:var(--brand-electric)]/40"
+              className="group relative overflow-hidden rounded-3xl border border-dashed border-border bg-card/70 p-7 backdrop-blur transition-all duration-500 hover:-translate-y-1 hover:border-[color:var(--brand-electric)]/50 hover:bg-card hover:shadow-[var(--shadow-elegant)]"
+              style={{ animationDelay: `${i * 60}ms` }}
             >
-              <div className="flex items-center justify-between">
-                <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-secondary text-[color:var(--brand-deep)]">
+              <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-[image:var(--gradient-brand)] opacity-0 blur-3xl transition-opacity duration-500 group-hover:opacity-20" />
+              <div className="flex items-start justify-between gap-3">
+                <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-[color:var(--brand-deep)] transition-all duration-500 group-hover:bg-[image:var(--gradient-brand)] group-hover:text-white">
                   <r.icon className="h-5 w-5" />
                 </div>
-                <span className="rounded-full border border-[color:var(--brand-electric)]/30 bg-[color:var(--brand-electric)]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--brand-electric)]">
-                  Coming soon
+                <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--brand-electric)]/30 bg-[color:var(--brand-electric)]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--brand-electric)]">
+                  <Clock3 className="h-3 w-3" /> Planned
                 </span>
               </div>
-              <h3 className="mt-5 text-base font-semibold text-foreground">{r.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{r.desc}</p>
+              <h3 className="mt-5 text-lg font-bold text-foreground">{r.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                {r.desc}
+              </p>
+              <div className="mt-5 flex flex-wrap gap-1.5">
+                {r.items.map((it) => (
+                  <span
+                    key={it}
+                    className="inline-flex items-center gap-1 rounded-full border border-border bg-background/70 px-2.5 py-1 text-[11px] font-medium text-foreground/80 transition-colors group-hover:border-[color:var(--brand-electric)]/30"
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--brand-electric)]/60" />
+                    {it}
+                  </span>
+                ))}
+              </div>
             </div>
           ))}
         </div>
+
+        <p className="mx-auto mt-14 max-w-xl text-center text-xs text-muted-foreground">
+          Roadmap items are shared for transparency. Delivery timing may change —
+          they are <b>not available today</b>. Follow along or request early
+          access via <a className="underline underline-offset-4 hover:text-foreground" href="#contact">Contact</a>.
+        </p>
       </div>
     </section>
   );
