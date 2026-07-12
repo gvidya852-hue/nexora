@@ -125,7 +125,8 @@ function Btn({
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--brand-electric)]">
+    <p className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[color:var(--brand-electric)]">
+      <span className="h-px w-5 bg-[color:var(--brand-electric)]/50" />
       {children}
     </p>
   );
@@ -1863,61 +1864,141 @@ function ChartArea() {
    INTEGRATIONS
 ───────────────────────────────────────────────────────────────── */
 
-const INTEGRATIONS = [
-  { name: "Razorpay", category: "Payments", color: "bg-blue-50 border-blue-100 text-blue-700" },
-  { name: "PhonePe", category: "Payments", color: "bg-violet-50 border-violet-100 text-violet-700" },
-  { name: "Stripe", category: "Payments", color: "bg-indigo-50 border-indigo-100 text-indigo-700" },
-  { name: "UPI", category: "Payments", color: "bg-orange-50 border-orange-100 text-orange-700" },
-  { name: "WhatsApp", category: "Messaging", color: "bg-green-50 border-green-100 text-green-700" },
-  { name: "Google Workspace", category: "Productivity", color: "bg-red-50 border-red-100 text-red-700" },
-  { name: "Microsoft 365", category: "Productivity", color: "bg-sky-50 border-sky-100 text-sky-700" },
-  { name: "Google Sheets", category: "Data", color: "bg-emerald-50 border-emerald-100 text-emerald-700" },
-  { name: "Google Drive", category: "Storage", color: "bg-yellow-50 border-yellow-100 text-yellow-700" },
-  { name: "Excel / CSV", category: "Data", color: "bg-green-50 border-green-100 text-green-700" },
-  { name: "Barcode Scanner", category: "Hardware", color: "bg-slate-50 border-slate-100 text-slate-700" },
-  { name: "Thermal Printer", category: "Hardware", color: "bg-slate-50 border-slate-100 text-slate-700" },
-  { name: "Gmail", category: "Email", color: "bg-red-50 border-red-100 text-red-700" },
-  { name: "Developer API", category: "Platform", color: "bg-neutral-50 border-neutral-100 text-neutral-700" },
-  { name: "Webhooks", category: "Platform", color: "bg-neutral-50 border-neutral-100 text-neutral-700" },
-  { name: "Tally", category: "Accounting", color: "bg-blue-50 border-blue-100 text-blue-700" },
+const INTEGRATIONS_LIVE = [
+  {
+    name: "UPI Payments",
+    category: "Payments",
+    desc: "QR code on every invoice. Customers scan and pay instantly — no gateway fees.",
+    icon: QrCode,
+    color: "bg-orange-50 border-orange-100 text-orange-600",
+  },
+  {
+    name: "Razorpay",
+    category: "Payments",
+    desc: "Accept cards, net banking, wallets and EMI. Payments reconciled automatically.",
+    icon: CreditCard,
+    color: "bg-blue-50 border-blue-100 text-blue-600",
+  },
+  {
+    name: "Excel & CSV",
+    category: "Data",
+    desc: "Bulk-import products, customers and opening stock. Export any report instantly.",
+    icon: FileText,
+    color: "bg-emerald-50 border-emerald-100 text-emerald-600",
+  },
+  {
+    name: "Barcode Scanner",
+    category: "Hardware",
+    desc: "USB and webcam barcode scanning built directly into inventory and billing.",
+    icon: Scan,
+    color: "bg-slate-50 border-slate-200 text-slate-600",
+  },
+  {
+    name: "Thermal Printer",
+    category: "Hardware",
+    desc: "Print 58mm and 80mm POS receipts from any page, with one click.",
+    icon: Printer,
+    color: "bg-slate-50 border-slate-200 text-slate-600",
+  },
+  {
+    name: "Email (SMTP)",
+    category: "Email",
+    desc: "Send invoices, payment reminders and statements directly from Nexora.",
+    icon: Mail,
+    color: "bg-red-50 border-red-100 text-red-600",
+  },
+];
+
+const INTEGRATIONS_SOON = [
+  { name: "WhatsApp Business", category: "Messaging", desc: "Auto-send invoices and payment reminders on WhatsApp.", quarter: "Q3 2026" },
+  { name: "PhonePe", category: "Payments", desc: "Accept PhonePe merchant gateway payments seamlessly.", quarter: "Q3 2026" },
+  { name: "Tally Export", category: "Accounting", desc: "Two-way sync with Tally ERP for zero-effort bookkeeping.", quarter: "Q4 2026" },
+  { name: "Google Sheets", category: "Data", desc: "Live-sync your reports and business data to Sheets.", quarter: "Q4 2026" },
+  { name: "Stripe", category: "Payments", desc: "Accept international cards, subscriptions and checkout.", quarter: "Q1 2027" },
+  { name: "Developer API", category: "Platform", desc: "REST API and webhooks to build custom integrations.", quarter: "Q1 2027" },
+  { name: "Google Workspace", category: "Productivity", desc: "Single sign-on and Drive integration for document storage.", quarter: "Q2 2027" },
+  { name: "Microsoft 365", category: "Productivity", desc: "Outlook email dispatch and OneDrive backup support.", quarter: "Q2 2027" },
 ];
 
 function Integrations() {
   return (
     <section className="py-24 lg:py-32">
       <div className="mx-auto max-w-7xl px-6">
+
+        {/* Header */}
         <div className="mx-auto max-w-2xl text-center mb-16">
           <SectionLabel>Integrations</SectionLabel>
-          <h2 className="mt-4 text-3xl font-black tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-            Connects with the tools you already use.
+          <h2 className="mt-5 text-3xl font-black leading-[1.08] tracking-tight text-foreground sm:text-4xl lg:text-[2.75rem]">
+            Honest about what connects today.
           </h2>
           <p className="mt-5 text-base leading-relaxed text-muted-foreground">
-            Nexora plugs into your existing payment rails, communication channels, hardware and productivity stack — no migration, no friction.
+            We only show integrations that are actually built and working. Everything else is clearly marked with its planned release date.
           </p>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
-          {INTEGRATIONS.map((int) => (
-            <div
-              key={int.name}
-              className="group flex items-center gap-3 rounded-2xl border border-border bg-white px-4 py-4 shadow-[0_1px_4px_oklch(0.14_0.02_260/0.07)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[color:var(--brand-electric)]/30 hover:shadow-[var(--shadow-elegant)]"
-            >
-              <span className={`grid h-9 w-9 flex-shrink-0 place-items-center rounded-xl border text-xs font-bold ${int.color}`}>
-                {int.name.charAt(0)}
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-foreground">{int.name}</p>
-                <p className="text-[11px] text-muted-foreground">{int.category}</p>
+
+        {/* ── Available Today ── */}
+        <div className="mb-12">
+          <div className="mb-5 flex items-center gap-3">
+            <span className="flex items-center gap-2 text-[12px] font-semibold text-emerald-600 uppercase tracking-[0.15em]">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              Available in Nexora v1.0
+            </span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {INTEGRATIONS_LIVE.map((int) => (
+              <div
+                key={int.name}
+                className="group flex items-start gap-4 rounded-2xl border border-border bg-white p-5 shadow-[0_1px_4px_oklch(0.14_0.02_260/0.07)] transition-all duration-300 hover:-translate-y-0.5 hover:border-[color:var(--brand-electric)]/30 hover:shadow-[0_8px_30px_oklch(0.14_0.02_260/0.10)]"
+              >
+                <span className={`mt-0.5 grid h-10 w-10 flex-shrink-0 place-items-center rounded-xl border ${int.color}`}>
+                  <int.icon className="h-4.5 w-4.5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground">{int.name}</p>
+                  <p className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider mt-0.5">{int.category}</p>
+                  <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">{int.desc}</p>
+                </div>
               </div>
-            </div>
-          ))}
-          {/* API card */}
-          <div className="group flex items-center justify-center gap-2 rounded-2xl border border-dashed border-[color:var(--brand-electric)]/30 bg-[color:var(--brand-electric)]/5 px-4 py-4 transition-all duration-300 hover:bg-[color:var(--brand-electric)]/10 cursor-pointer">
-            <Puzzle className="h-4 w-4 text-[color:var(--brand-electric)]" />
-            <span className="text-sm font-semibold text-[color:var(--brand-electric)]">Build your own</span>
+            ))}
           </div>
         </div>
-        <p className="mt-8 text-center text-sm text-muted-foreground">
-          Can't see your tool?{" "}
+
+        {/* ── Coming Soon ── */}
+        <div>
+          <div className="mb-5 flex items-center gap-3">
+            <span className="flex items-center gap-2 text-[12px] font-semibold text-amber-600 uppercase tracking-[0.15em]">
+              <span className="h-2 w-2 rounded-full bg-amber-400" />
+              Coming soon — not available today
+            </span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {INTEGRATIONS_SOON.map((int) => (
+              <div
+                key={int.name}
+                className="flex flex-col gap-3 rounded-2xl border border-dashed border-border/70 bg-secondary/30 p-4 opacity-75 transition-opacity hover:opacity-100"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground/70">{int.name}</p>
+                    <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-wider mt-0.5">{int.category}</p>
+                  </div>
+                  <span className="flex-shrink-0 rounded-full bg-amber-50 border border-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-600 uppercase tracking-wider">
+                    {int.quarter}
+                  </span>
+                </div>
+                <p className="text-[11px] leading-relaxed text-muted-foreground/60">{int.desc}</p>
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground/50">
+                  <Clock3 className="h-3 w-3" /> Coming Soon
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <p className="mt-10 text-center text-sm text-muted-foreground">
+          Don't see what you need?{" "}
           <a href="#contact" className="font-semibold text-[color:var(--brand-electric)] hover:underline underline-offset-4">
             Request an integration →
           </a>
@@ -2242,96 +2323,163 @@ function Pricing() {
    COMING SOON (ROADMAP)
 ───────────────────────────────────────────────────────────────── */
 
-const ROADMAP = [
-  {
-    icon: UserCog,
-    title: "Employee Management",
-    desc: "A complete HR toolkit — attendance, payroll and performance built directly into your business OS.",
-    items: ["Employee Profiles", "Attendance", "Leave Management", "Payroll", "Shift Scheduling", "Performance Tracking", "Employee Mobile App"],
-  },
-  {
-    icon: ShieldCheck,
-    title: "Advanced Role & Permissions",
-    desc: "Granular access control with pre-built roles and approval workflows for every business shape.",
-    items: ["Super Admin", "Manager", "Cashier", "Accountant", "Warehouse Staff", "Custom Roles", "Approval Workflows", "Activity Logs"],
-  },
+type RoadmapStatus = "In Development" | "In Design" | "Planned";
+
+const ROADMAP: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  desc: string;
+  quarter: string;
+  status: RoadmapStatus;
+  value: string;
+}[] = [
   {
     icon: MessageCircle,
     title: "WhatsApp Business",
-    desc: "Sell, notify and support your customers where they already spend their time.",
-    items: ["Send Invoices", "Payment Reminders", "Order Notifications", "AI Customer Chat", "Broadcast Messages", "WhatsApp Catalog"],
+    desc: "Sell, notify and support your customers where they already spend their time — with AI-powered replies and automated invoice delivery via WhatsApp.",
+    quarter: "Q3 2026",
+    status: "In Development",
+    value: "Eliminate manual follow-up for 80% of payment reminders.",
+  },
+  {
+    icon: UserCog,
+    title: "Employee Management",
+    desc: "A complete HR toolkit — attendance tracking, leave management, payroll calculation and performance reviews — built directly into your existing business OS.",
+    quarter: "Q4 2026",
+    status: "In Development",
+    value: "Manage your entire workforce without a separate HR system.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Advanced Roles & Permissions",
+    desc: "Granular access control with pre-built roles, custom permission sets and approval workflows — so every team member sees only what they need.",
+    quarter: "Q4 2026",
+    status: "In Design",
+    value: "Prevent data leakage and enforce accountability at every level.",
   },
   {
     icon: Smartphone,
     title: "Native Mobile Apps",
-    desc: "Full-featured Android and iOS apps to run the business from your pocket — even offline.",
-    items: ["Android App", "iOS App", "Offline Mode", "Push Notifications", "Mobile Dashboard"],
+    desc: "Full-featured Android and iOS apps that work fully offline — run billing, inventory and approvals from your pocket, with or without internet.",
+    quarter: "Q1 2027",
+    status: "In Design",
+    value: "Stay in control of your business 24/7, from anywhere.",
   },
   {
     icon: Bot,
     title: "Specialised AI Agents",
-    desc: "Dedicated AI agents for sales, inventory, accounting, marketing and customer support.",
-    items: ["AI Sales Agent", "AI Inventory Manager", "AI Accountant", "AI Marketing", "AI Customer Support", "Voice Assistant"],
+    desc: "Dedicated AI agents for sales forecasting, inventory optimisation, accounting reconciliation and customer support — each trained on your business data.",
+    quarter: "Q1 2027",
+    status: "Planned",
+    value: "Automate complex business decisions without hiring specialists.",
   },
   {
     icon: Puzzle,
     title: "Extended Integrations",
-    desc: "Connect to Tally, Zoho, QuickBooks, POS machines and the full suite of Indian enterprise tools.",
-    items: ["Tally Export", "Zoho Books", "QuickBooks", "POS Machines", "e-Invoice (IRN)", "e-Way Bill"],
+    desc: "Deep two-way sync with Tally ERP, Zoho Books, QuickBooks, POS machines and the complete suite of Indian enterprise tools including e-Invoice and e-Way Bill.",
+    quarter: "Q2 2027",
+    status: "Planned",
+    value: "Connect your existing accounting stack without changing your workflow.",
   },
 ];
 
+const STATUS_STYLE: Record<RoadmapStatus, { pill: string; bar: string; label: string }> = {
+  "In Development": {
+    pill: "bg-amber-50 border-amber-100 text-amber-700",
+    bar: "bg-amber-400",
+    label: "In Development",
+  },
+  "In Design": {
+    pill: "bg-sky-50 border-sky-100 text-sky-700",
+    bar: "bg-sky-400",
+    label: "In Design",
+  },
+  Planned: {
+    pill: "bg-slate-100 border-slate-200 text-slate-600",
+    bar: "bg-slate-300",
+    label: "Planned",
+  },
+};
+
 function ComingSoon() {
   return (
-    <section id="roadmap" className="relative overflow-hidden py-24 lg:py-32 bg-secondary/30">
+    <section id="roadmap" className="relative overflow-hidden py-24 lg:py-32">
+      {/* Subtle background */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_40%_at_50%_100%,oklch(0.62_0.22_258/0.04),transparent_70%)]" />
+
       <div className="mx-auto max-w-7xl px-6">
+
+        {/* Header */}
         <div className="mx-auto max-w-2xl text-center mb-16">
-          <span className="inline-flex items-center gap-2 rounded-full border border-[color:var(--brand-electric)]/30 bg-[color:var(--brand-electric)]/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--brand-electric)]">
-            <Zap className="h-3 w-3" /> On the roadmap
-          </span>
-          <h2 className="mt-4 text-3xl font-black tracking-tight text-foreground sm:text-4xl lg:text-5xl">
-            Coming soon to{" "}
-            <span className="text-gradient">Nexora</span>.
+          <SectionLabel>Roadmap</SectionLabel>
+          <h2 className="mt-5 text-3xl font-black leading-[1.08] tracking-tight text-foreground sm:text-4xl lg:text-[2.75rem]">
+            Built in the open.{" "}
+            <span className="text-[color:var(--brand-electric)]">Shipped every month.</span>
           </h2>
-          <p className="mt-4 text-base leading-relaxed text-muted-foreground">
-            The platform ships new capability every month. Here's a transparent look at what's being built next. Every feature below is <strong>planned, not yet available</strong>.
+          <p className="mt-5 text-base leading-relaxed text-muted-foreground">
+            Every feature below is <strong className="font-semibold text-foreground">planned, not yet available.</strong> We publish our roadmap because transparency is the foundation of trust.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {ROADMAP.map((r, i) => (
-            <div
-              key={r.title}
-              className="group relative overflow-hidden rounded-3xl border border-dashed border-border bg-white p-7 transition-all duration-500 hover:-translate-y-1 hover:border-[color:var(--brand-electric)]/40 hover:shadow-[var(--shadow-elegant)]"
-              style={{ animationDelay: `${i * 60}ms` }}
-            >
-              <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-[image:var(--gradient-brand)] opacity-0 blur-3xl transition-opacity duration-500 group-hover:opacity-15" />
-              <div className="flex items-start justify-between gap-3">
-                <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-[color:var(--brand-deep)] transition-all duration-500 group-hover:bg-[image:var(--gradient-brand)] group-hover:text-white">
-                  <r.icon className="h-5 w-5" />
+        {/* Cards */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {ROADMAP.map((r) => {
+            const s = STATUS_STYLE[r.status];
+            return (
+              <div
+                key={r.title}
+                className="group flex flex-col rounded-3xl border border-border bg-white p-8 shadow-[0_1px_4px_oklch(0.14_0.02_260/0.06)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_oklch(0.14_0.02_260/0.10)]"
+              >
+                {/* Icon */}
+                <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-secondary text-[color:var(--brand-deep)] transition-colors duration-300 group-hover:bg-[image:var(--gradient-brand)] group-hover:border-transparent group-hover:text-white">
+                  <r.icon className="h-6 w-6" />
                 </div>
-                <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--brand-electric)]/30 bg-[color:var(--brand-electric)]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--brand-electric)]">
-                  <Clock3 className="h-3 w-3" /> Planned
-                </span>
+
+                {/* Title + desc */}
+                <h3 className="text-[1.1rem] font-bold leading-snug text-foreground">{r.title}</h3>
+                <p className="mt-3 text-sm leading-[1.7] text-muted-foreground flex-1">{r.desc}</p>
+
+                {/* Divider */}
+                <div className="my-6 h-px bg-border" />
+
+                {/* Meta grid */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-[12px]">
+                    <span className="font-medium text-muted-foreground">Expected release</span>
+                    <span className="font-semibold text-foreground">{r.quarter}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[12px]">
+                    <span className="font-medium text-muted-foreground">Status</span>
+                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold ${s.pill}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${s.bar}`} />
+                      {s.label}
+                    </span>
+                  </div>
+                  <div className="rounded-xl bg-secondary/50 px-4 py-3 text-[12px] leading-relaxed text-muted-foreground">
+                    <span className="font-semibold text-foreground">Business value · </span>
+                    {r.value}
+                  </div>
+                </div>
+
+                {/* CTA */}
+                <a
+                  href="#contact"
+                  className="mt-6 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[color:var(--brand-electric)] transition-all duration-200 hover:gap-2.5"
+                >
+                  Get notified when it launches
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </a>
               </div>
-              <h3 className="mt-5 text-lg font-bold text-foreground">{r.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{r.desc}</p>
-              <div className="mt-5 flex flex-wrap gap-1.5">
-                {r.items.map((it) => (
-                  <span key={it} className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary/60 px-2.5 py-1 text-[11px] font-medium text-foreground/70">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--brand-electric)]/50" />
-                    {it}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        <p className="mx-auto mt-12 max-w-xl text-center text-xs text-muted-foreground">
-          Roadmap items are shared for transparency. Delivery timing may change. Items are{" "}
-          <strong>not available today</strong>. Request early access via{" "}
-          <a className="underline underline-offset-4 hover:text-foreground" href="#contact">Contact</a>.
+        {/* Footer note */}
+        <p className="mx-auto mt-14 max-w-lg text-center text-[12px] leading-relaxed text-muted-foreground">
+          Roadmap items are shared for transparency and may shift. Nothing above is available today.{" "}
+          <a className="font-semibold text-foreground underline underline-offset-4 hover:text-[color:var(--brand-electric)]" href="#contact">
+            Request early access →
+          </a>
         </p>
       </div>
     </section>
