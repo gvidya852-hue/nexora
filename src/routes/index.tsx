@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowRight,
   Check,
@@ -340,7 +340,7 @@ type FeatureCategory = {
   tagline: string;
   desc: string;
   items: string[];
-  preview: () => React.ReactElement;
+  preview: () => ReactNode;
 };
 
 const FEATURE_CATEGORIES: FeatureCategory[] = [
