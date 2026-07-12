@@ -30,6 +30,18 @@ import {
   Plus,
   Minus,
 } from "lucide-react";
+import {
+  UserCog,
+  Puzzle,
+  Bot,
+  Printer,
+  QrCode,
+  Scan,
+  Warehouse,
+  Landmark,
+  Zap,
+  Volume2,
+} from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Landing,
