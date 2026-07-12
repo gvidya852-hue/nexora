@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight,
   Check,
@@ -517,86 +518,7 @@ function TrustedBy() {
    FEATURE SHOWCASE — reusable alternating layout
 ───────────────────────────────────────────────────────────────── */
 
-function FeatureShowcase({
-  id,
-  eyebrow,
-  headline,
-  description,
-  items,
-  badges,
-  cta,
-  preview,
-  reverse = false,
-  bg = "",
-}: {
-  id?: string;
-  eyebrow: string;
-  headline: string;
-  description: string;
-  items: string[];
-  badges: string[];
-  cta?: string;
-  preview: () => ReactNode;
-  reverse?: boolean;
-  bg?: string;
-}) {
-  return (
-    <section id={id} className={`relative py-24 lg:py-32 overflow-hidden ${bg}`}>
-      <div className="mx-auto max-w-7xl px-6">
-        <div className={`grid grid-cols-1 items-center gap-16 lg:grid-cols-2 ${reverse ? "lg:[&>*:first-child]:order-2" : ""}`}>
-          {/* Mockup side */}
-          <div className="relative">
-            {preview()}
-          </div>
-
-          {/* Copy side */}
-          <div className={reverse ? "lg:pr-8" : "lg:pl-8"}>
-            <SectionLabel>{eyebrow}</SectionLabel>
-            <h2 className="mt-4 text-3xl font-black leading-[1.1] tracking-tight text-foreground sm:text-4xl lg:text-[2.75rem]">
-              {headline}
-            </h2>
-            <p className="mt-5 text-base leading-relaxed text-muted-foreground lg:text-[17px]">
-              {description}
-            </p>
-
-            <ul className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {items.map((item) => (
-                <li key={item} className="flex items-center gap-3 text-sm text-foreground">
-                  <span className="grid h-5 w-5 flex-shrink-0 place-items-center rounded-full bg-[color:var(--brand-electric)]/10">
-                    <Check className="h-3 w-3 text-[color:var(--brand-electric)]" />
-                  </span>
-                  {item}
-                </li>
-              ))}
-            </ul>
-
-            <div className="mt-8 flex flex-wrap gap-2">
-              {badges.map((b) => (
-                <span
-                  key={b}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5 text-[11px] font-semibold text-foreground shadow-[0_1px_4px_oklch(0.14_0.02_260/0.08)]"
-                >
-                  <CheckCircle2 className="h-3 w-3 text-[color:var(--brand-electric)]" />
-                  {b}
-                </span>
-              ))}
-            </div>
-
-            <div className="mt-8">
-              <a
-                href="#pricing"
-                className="inline-flex items-center gap-1.5 text-sm font-semibold text-[color:var(--brand-electric)] transition-all duration-200 hover:gap-3"
-              >
-                {cta ?? `Explore ${eyebrow}`}
-                <ArrowRight className="h-4 w-4" />
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
+/* FeatureShowcase removed — replaced by ProductShowcase below */
 
 /* ─────────────────────────────────────────────────────────────────
    LARGE PREVIEW SHELL (browser-style, more premium)
@@ -1200,144 +1122,511 @@ function MultiBranchMockup() {
 }
 
 /* ─────────────────────────────────────────────────────────────────
-   FEATURES — 6 alternating showcase sections
+   CUSTOMERS MOCKUP (tab)
 ───────────────────────────────────────────────────────────────── */
 
-function Features() {
+function CustomersMockup() {
+  const segments = [
+    { label: "VIP", count: 284, pct: 5, color: "bg-[image:var(--gradient-brand)]", text: "text-white" },
+    { label: "Loyal", count: 1142, pct: 20, color: "bg-sky-500", text: "text-white" },
+    { label: "Regular", count: 2880, pct: 50, color: "bg-secondary border border-border", text: "text-foreground" },
+    { label: "New", count: 1096, pct: 19, color: "bg-emerald-50 border border-emerald-200", text: "text-emerald-700" },
+    { label: "Churned", count: 419, pct: 7, color: "bg-red-50 border border-red-200", text: "text-red-600" },
+  ];
+  const topCustomers = [
+    { name: "Meridian Retail", ltv: "₹1.42L", orders: 48, active: true, initials: "MR", last: "2h ago" },
+    { name: "Vertex Trade", ltv: "₹2.18L", orders: 72, active: true, initials: "VT", last: "1h ago" },
+    { name: "Cascade Foods", ltv: "₹98,400", orders: 34, active: false, initials: "CF", last: "1d ago" },
+    { name: "Halcyon Group", ltv: "₹32,100", orders: 8, active: false, initials: "HG", last: "3d ago" },
+  ];
   return (
-    <div id="features">
-      {/* Billing — image left, text right */}
-      <FeatureShowcase
-        eyebrow="Billing & Invoicing"
-        headline="Billing that works as fast as your business."
-        description="Create GST-compliant invoices, quotations, purchase bills and recurring invoices from one intelligent workspace. UPI QR, thermal printing and auto payment reminders built in."
-        items={[
-          "GST Invoices & Quotations",
-          "Purchase Bills & Credit Notes",
-          "Recurring Invoices",
-          "Multiple Invoice Templates",
-          "PDF Export & Thermal Print",
-          "UPI Payment QR",
-          "Razorpay & PhonePe",
-          "Auto Payment Reminders",
-          "Outstanding Tracking",
-          "GSTR-1 Export",
-        ]}
-        badges={["GST Certified", "Razorpay Ready", "UPI Payments", "Thermal Printing"]}
-        cta="Explore Billing"
-        preview={() => <BillingMockup />}
-      />
+    <LargePreviewShell
+      url="crm / customer-analytics"
+      badge={
+        <span className="rounded-full bg-[color:var(--brand-electric)]/10 px-2.5 py-1 text-[10px] font-semibold text-[color:var(--brand-electric)]">
+          5,821 customers
+        </span>
+      }
+      floats={
+        <>
+          <div className="absolute -right-6 top-14 hidden animate-float-slower lg:block">
+            <div className="glass rounded-2xl px-4 py-3.5 shadow-lg min-w-[170px]">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Avg LTV</p>
+              <p className="mt-1.5 text-xl font-black text-foreground">₹18,420</p>
+              <p className="text-[11px] font-semibold text-emerald-600 mt-0.5">↑ 14% this quarter</p>
+            </div>
+          </div>
+          <div className="absolute -left-6 bottom-10 hidden animate-float lg:block">
+            <div className="glass rounded-2xl px-4 py-3 shadow-lg">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <p className="text-xs font-semibold text-foreground">Loyalty active</p>
+              </div>
+              <p className="text-xs text-muted-foreground">284 VIP customers enrolled</p>
+            </div>
+          </div>
+        </>
+      }
+    >
+      {/* Segment grid */}
+      <div className="mb-4 grid grid-cols-5 gap-2">
+        {segments.map((s) => (
+          <div key={s.label} className={`rounded-xl p-2.5 text-center ${s.color}`}>
+            <p className={`text-base font-black ${s.text}`}>{s.count > 999 ? `${(s.count / 1000).toFixed(1)}k` : s.count}</p>
+            <p className={`text-[10px] font-semibold mt-0.5 ${s.text} opacity-80`}>{s.label}</p>
+          </div>
+        ))}
+      </div>
 
-      {/* Inventory — image right, text left */}
-      <FeatureShowcase
-        eyebrow="Inventory Management"
-        headline="Every product, every unit, always accurate."
-        description="Real-time stock updates with every sale and purchase. Batch tracking, expiry alerts, barcode scanning and AI-powered restock suggestions keep shelves full and cash flowing."
-        items={[
-          "Unlimited Products & Categories",
-          "Barcode Generation & Scanner",
-          "Batch & Expiry Tracking",
-          "Low Stock Alerts",
-          "Purchase Orders",
-          "Supplier Management",
-          "Multi-location Inventory",
-          "Stock Transfer",
-          "Inventory Valuation",
-          "Auto Restock Suggestions",
-        ]}
-        badges={["Barcode Ready", "Multi-Warehouse", "Real-time Sync", "AI Reorder"]}
-        cta="Explore Inventory"
-        preview={() => <InventoryMockup />}
-        reverse
-        bg="bg-secondary/30"
-      />
+      {/* LTV bar chart */}
+      <div className="rounded-xl border border-border/60 bg-secondary/30 p-4 mb-3">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Customer LTV distribution</p>
+            <p className="text-[11px] text-muted-foreground">Revenue by segment · last 12 months</p>
+          </div>
+          <span className="text-[10px] font-semibold text-[color:var(--brand-electric)]">View all →</span>
+        </div>
+        <div className="space-y-2.5">
+          {[
+            { seg: "VIP", rev: "₹4.03L", pct: 100, color: "bg-[image:var(--gradient-brand)]" },
+            { seg: "Loyal", rev: "₹1.82L", pct: 45, color: "bg-sky-400" },
+            { seg: "Regular", rev: "₹2.88L", pct: 71, color: "bg-slate-300" },
+          ].map((r) => (
+            <div key={r.seg} className="flex items-center gap-3">
+              <span className="w-12 text-[10px] font-medium text-muted-foreground">{r.seg}</span>
+              <div className="flex-1 h-2 rounded-full bg-border">
+                <div className={`h-full rounded-full ${r.color}`} style={{ width: `${r.pct}%` }} />
+              </div>
+              <span className="w-14 text-right text-[11px] font-semibold text-foreground">{r.rev}</span>
+            </div>
+          ))}
+        </div>
+      </div>
 
-      {/* CRM — image left, text right */}
-      <FeatureShowcase
-        eyebrow="CRM & Customer Management"
-        headline="Every customer relationship, in one place."
-        description="Complete customer profiles with full purchase history, outstanding dues, loyalty points and sales pipeline status. Follow-ups and reminders run automatically so nothing slips through."
-        items={[
-          "Customer Database & 360° View",
-          "Full Purchase History",
-          "Sales Pipeline",
-          "Lead Management",
-          "Follow-up Reminders",
-          "Customer Segmentation",
-          "Loyalty Program",
-          "Outstanding Tracking",
-          "Customer Analytics",
-        ]}
-        badges={["360° Customer View", "Pipeline Tracking", "Auto Follow-ups", "Loyalty Points"]}
-        cta="Explore CRM"
-        preview={() => <CRMMockup />}
-      />
+      {/* Top customers */}
+      <div className="space-y-1.5">
+        {topCustomers.map((c) => (
+          <div key={c.name} className="flex items-center gap-3 rounded-xl border border-border/40 bg-secondary/30 px-3 py-2 hover:bg-secondary/60 cursor-pointer transition-colors">
+            <span className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-[image:var(--gradient-brand)] text-[11px] font-bold text-white">
+              {c.initials}
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-foreground">{c.name}</p>
+              <p className="text-[10px] text-muted-foreground">{c.orders} orders · {c.last}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs font-bold text-foreground">{c.ltv}</p>
+              <span className={`text-[9px] font-semibold ${c.active ? "text-emerald-600" : "text-muted-foreground"}`}>
+                {c.active ? "● Active" : "○ Dormant"}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </LargePreviewShell>
+  );
+}
 
-      {/* Reports — image right, text left */}
-      <FeatureShowcase
-        eyebrow="Reports & Analytics"
-        headline="Every number, live. Every insight, instant."
-        description="Live P&L, revenue trends, business health score, tax summaries and employee performance — always current, always precise. Monthly close drops from weeks to hours."
-        items={[
-          "Daily & Monthly Sales Reports",
-          "Profit & Loss Statement",
-          "Revenue Analytics",
-          "Best & Slow-Moving Products",
-          "Customer Analytics",
-          "Employee Performance",
-          "Tax Reports & GST Summary",
-          "Business Health Dashboard",
-          "Export to PDF & Excel",
-        ]}
-        badges={["Live Dashboard", "GST Summary", "P&L Reports", "Export to Excel"]}
-        cta="Explore Analytics"
-        preview={() => <ReportsMockup />}
-        reverse
-        bg="bg-secondary/30"
-      />
+/* ─────────────────────────────────────────────────────────────────
+   AI MOCKUP (tab panel version — lighter)
+───────────────────────────────────────────────────────────────── */
 
-      {/* Finance — image left, text right */}
-      <FeatureShowcase
-        eyebrow="Finance & Cash Flow"
-        headline="Full financial clarity, zero surprises."
-        description="Track every rupee in and out. Cash flow forecasting, expense management, bank reconciliation and tax summary in one cockpit. Know your position 30 days ahead."
-        items={[
-          "Expense Management",
-          "Income Tracking",
-          "Cash Flow Dashboard",
-          "30-Day Forecast",
-          "Profit Tracking",
-          "Tax Summary",
-          "Bank Reconciliation",
-          "Financial Dashboard",
-        ]}
-        badges={["Bank Reconciliation", "30-day Forecast", "Tax Summary", "Auto-Categorise"]}
-        cta="Explore Finance"
-        preview={() => <FinanceMockup />}
-      />
+function AIMockupTab() {
+  const msgs = [
+    { role: "user" as const, text: "How did sales perform today?" },
+    { role: "ai" as const, text: "You've done ₹64,320 across 87 invoices — up 12% vs yesterday. Best seller: Amul Gold 1L (42 units). Meridian Retail accounts for 28% of today's revenue.", action: undefined },
+    { role: "user" as const, text: "Create an invoice for Priya Traders, 3 usual items." },
+    { role: "ai" as const, text: "Drafted INV-1042 for Priya Traders with their 3 most frequent items. GST auto-calculated (₹3,780). Shall I send to their email or print?", action: "Preview Invoice" },
+    { role: "user" as const, text: "Which products need restocking this week?" },
+    { role: "ai" as const, text: "3 items below reorder threshold: Tata Salt 1kg (4 left), Colgate MaxFresh (6 left), Maggi 70g (9 left). Shall I create purchase orders?", action: "Create POs" },
+  ];
+  return (
+    <div className="relative">
+      {/* Glow */}
+      <div className="absolute -inset-6 -z-10 rounded-[3rem] bg-[image:var(--gradient-brand)] opacity-[0.10] blur-3xl" />
 
-      {/* Multi-Branch — image right, text left */}
-      <FeatureShowcase
-        eyebrow="Multi-Branch Management"
-        headline="Run every location from one command centre."
-        description="Unlimited branches, centralised reporting and branch-wise inventory — all visible from a single login. Role-based access ensures the right people see the right data."
-        items={[
-          "Unlimited Branch Management",
-          "Centralised Dashboard",
-          "Branch Performance Comparison",
-          "Branch-wise Inventory",
-          "Branch-wise Reports",
-          "Central Billing",
-          "Role-Based Access",
-          "Stock Transfer Between Branches",
-        ]}
-        badges={["Unlimited Branches", "Central Billing", "Role-Based Access", "Stock Transfer"]}
-        cta="Explore Multi-Branch"
-        preview={() => <MultiBranchMockup />}
-        reverse
-        bg="bg-secondary/30"
-      />
+      {/* Browser chrome */}
+      <div className="overflow-hidden rounded-2xl border border-border bg-[color:var(--brand-deep)] shadow-[0_24px_80px_-20px_oklch(0.14_0.02_260/0.30),0_0_0_1px_oklch(0.14_0.02_260/0.08)]">
+        {/* Chrome bar */}
+        <div className="flex items-center gap-2 border-b border-white/10 bg-white/5 px-5 py-3.5">
+          <span className="h-3 w-3 rounded-full bg-red-400/70" />
+          <span className="h-3 w-3 rounded-full bg-yellow-400/70" />
+          <span className="h-3 w-3 rounded-full bg-green-400/70" />
+          <div className="ml-3 flex flex-1 items-center gap-1.5 rounded-md bg-white/8 px-3 py-1.5">
+            <span className="text-[11px] text-white/40">nexora.app /</span>
+            <span className="text-[11px] font-medium text-white/70">ai-assistant</span>
+          </div>
+          <span className="flex items-center gap-1.5 rounded-full bg-emerald-400/15 px-2.5 py-1 text-[10px] font-semibold text-emerald-300">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            Ready
+          </span>
+        </div>
+
+        {/* Chat header */}
+        <div className="flex items-center gap-3 border-b border-white/8 px-5 py-4">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-[image:var(--gradient-brand)]">
+            <Sparkles className="h-4 w-4 text-white" />
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-white">Nexora AI</p>
+            <p className="text-[10px] text-white/45">Trained on your full business data</p>
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div className="max-h-[340px] overflow-y-auto p-5 space-y-3 scrollbar-hide">
+          {msgs.map((m, i) => (
+            <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div className="max-w-[88%] space-y-2">
+                <div className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                  m.role === "user"
+                    ? "bg-white text-[color:var(--brand-deep)] font-medium"
+                    : "bg-white/10 text-white"
+                }`}>
+                  {m.text}
+                </div>
+                {m.action && (
+                  <button className="flex items-center gap-1.5 rounded-full border border-[color:var(--brand-electric)]/40 bg-[color:var(--brand-electric)]/15 px-3 py-1.5 text-[11px] font-semibold text-[color:var(--brand-glow)]">
+                    <Check className="h-3 w-3" /> {m.action}
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Input */}
+        <div className="border-t border-white/8 p-4">
+          <div className="flex items-center gap-3 rounded-full border border-white/15 bg-white/5 px-4 py-3">
+            <Sparkles className="h-4 w-4 text-white/40 flex-shrink-0" />
+            <span className="flex-1 text-sm text-white/35">Ask Nexora anything about your business…</span>
+            <button className="grid h-7 w-7 place-items-center rounded-full bg-[image:var(--gradient-brand)] flex-shrink-0">
+              <ArrowRight className="h-3.5 w-3.5 text-white" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Floating cards */}
+      <div className="absolute -right-6 top-16 hidden animate-float-slower lg:block">
+        <div className="glass rounded-2xl px-4 py-3.5 shadow-lg min-w-[165px]">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">AI Actions Today</p>
+          <p className="mt-1.5 text-xl font-black text-foreground">142</p>
+          <p className="text-[11px] text-muted-foreground">invoices · POs · reports</p>
+        </div>
+      </div>
+      <div className="absolute -left-6 bottom-16 hidden animate-float lg:block">
+        <div className="glass rounded-2xl px-4 py-3 shadow-lg">
+          <div className="flex items-center gap-2">
+            <span className="grid h-5 w-5 place-items-center rounded-full bg-[image:var(--gradient-brand)]">
+              <Sparkles className="h-3 w-3 text-white" />
+            </span>
+            <p className="text-xs font-semibold text-foreground">Invoice drafted in 3s</p>
+          </div>
+          <p className="mt-1 text-[10px] text-muted-foreground">INV-1042 · Priya Traders · ₹24,780</p>
+        </div>
+      </div>
     </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   PRODUCT SHOWCASE — premium tabbed interactive section
+───────────────────────────────────────────────────────────────── */
+
+interface ShowcaseTab {
+  id: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  eyebrow: string;
+  headline: string;
+  description: string;
+  items: string[];
+  badges: string[];
+  metrics: { label: string; value: string; sub?: string }[];
+  mockup: ReactNode;
+  reverse?: boolean;
+  accentClass?: string;
+}
+
+function Features() {
+  const [activeTab, setActiveTab] = useState(0);
+
+  const tabs: ShowcaseTab[] = [
+    {
+      id: "billing",
+      label: "Billing",
+      icon: Receipt,
+      eyebrow: "Billing & Invoicing",
+      headline: "Billing that works as fast as your business.",
+      description: "Create GST-compliant invoices, quotations, purchase bills and recurring invoices from one intelligent workspace. UPI QR, thermal printing and auto payment reminders included.",
+      items: ["GST Invoices & Quotations", "Purchase Bills & Credit Notes", "Recurring Invoices", "Multiple Invoice Templates", "UPI Payment QR", "Razorpay & PhonePe", "Auto Payment Reminders", "GSTR-1 Export"],
+      badges: ["GST Certified", "Razorpay Ready", "UPI Payments", "Thermal Printing"],
+      metrics: [
+        { label: "Invoices today", value: "87", sub: "+12% vs yesterday" },
+        { label: "Collected", value: "₹64,320", sub: "today" },
+        { label: "Outstanding", value: "₹3.2L", sub: "12 invoices" },
+      ],
+      mockup: <BillingMockup />,
+      reverse: false,
+      accentClass: "bg-emerald-500/10 text-emerald-600",
+    },
+    {
+      id: "inventory",
+      label: "Inventory",
+      icon: Boxes,
+      eyebrow: "Inventory Management",
+      headline: "Every product, every unit, always accurate.",
+      description: "Real-time stock updates with every sale and purchase. Batch tracking, expiry alerts, barcode scanning and AI-powered restock suggestions keep shelves full and cash flowing.",
+      items: ["Unlimited Products & Categories", "Barcode Generation & Scanner", "Batch & Expiry Tracking", "Low Stock Alerts", "Purchase Orders & Suppliers", "Multi-location Inventory", "Stock Transfer", "Auto Restock Suggestions"],
+      badges: ["Barcode Ready", "Multi-Warehouse", "Real-time Sync", "AI Reorder"],
+      metrics: [
+        { label: "Total SKUs", value: "1,284", sub: "3 warehouses" },
+        { label: "Low stock", value: "3", sub: "need reorder" },
+        { label: "Value tracked", value: "₹12.4L", sub: "at cost" },
+      ],
+      mockup: <InventoryMockup />,
+      reverse: true,
+      accentClass: "bg-sky-500/10 text-sky-600",
+    },
+    {
+      id: "crm",
+      label: "CRM",
+      icon: Users,
+      eyebrow: "CRM & Relationships",
+      headline: "Every customer relationship, in one place.",
+      description: "Complete customer profiles with full purchase history, outstanding dues, loyalty points and sales pipeline status. Follow-ups and reminders run automatically so nothing slips.",
+      items: ["Customer Database & 360° View", "Full Purchase History", "Sales Pipeline & Leads", "Follow-up Reminders", "Customer Segmentation", "Loyalty Program", "Outstanding Tracking", "Customer Analytics"],
+      badges: ["360° Customer View", "Pipeline Tracking", "Auto Follow-ups", "Loyalty Points"],
+      metrics: [
+        { label: "Total customers", value: "5,821", sub: "active buyers" },
+        { label: "Active deals", value: "12", sub: "in pipeline" },
+        { label: "Won MTD", value: "₹6.2L", sub: "+24% vs last month" },
+      ],
+      mockup: <CRMMockup />,
+      reverse: false,
+      accentClass: "bg-violet-500/10 text-violet-600",
+    },
+    {
+      id: "reports",
+      label: "Reports",
+      icon: BarChart3,
+      eyebrow: "Reports & Analytics",
+      headline: "Every number, live. Every insight, instant.",
+      description: "Live P&L, revenue trends, business health score, tax summaries and employee performance — always current, always precise. Monthly close drops from weeks to hours.",
+      items: ["Daily & Monthly Sales Reports", "Profit & Loss Statement", "Revenue Analytics", "Best & Slow-Moving Products", "Employee Performance", "Tax Reports & GST Summary", "Business Health Score", "Export to PDF & Excel"],
+      badges: ["Live Dashboard", "GST Summary", "P&L Reports", "Excel Export"],
+      metrics: [
+        { label: "Revenue MTD", value: "₹8.4L", sub: "+12% vs last month" },
+        { label: "Net profit", value: "₹2.1L", sub: "25% margin" },
+        { label: "Business score", value: "92/100", sub: "Excellent" },
+      ],
+      mockup: <ReportsMockup />,
+      reverse: true,
+      accentClass: "bg-violet-500/10 text-violet-600",
+    },
+    {
+      id: "finance",
+      label: "Finance",
+      icon: Wallet,
+      eyebrow: "Finance & Cash Flow",
+      headline: "Full financial clarity, zero surprises.",
+      description: "Track every rupee in and out. Cash flow forecasting, expense management, bank reconciliation and tax summary in one cockpit. Know your position 30 days ahead.",
+      items: ["Expense Management", "Income Tracking", "Cash Flow Dashboard", "30-Day Forecast", "Profit Tracking", "Tax Summary", "Bank Reconciliation", "Financial Dashboard"],
+      badges: ["Bank Reconciliation", "30-day Forecast", "Tax Summary", "Auto-Categorise"],
+      metrics: [
+        { label: "30-day forecast", value: "₹9.2L", sub: "positive cashflow" },
+        { label: "Reconciled", value: "94%", sub: "1,842 transactions" },
+        { label: "GST liability", value: "₹92,210", sub: "due 11 Nov" },
+      ],
+      mockup: <FinanceMockup />,
+      reverse: false,
+      accentClass: "bg-amber-500/10 text-amber-600",
+    },
+    {
+      id: "ai",
+      label: "AI Assistant",
+      icon: Sparkles,
+      eyebrow: "Nexora AI",
+      headline: "An operator who never sleeps, inside your business.",
+      description: "Ask in plain English or Hindi. Nexora AI understands your full business context — sales, inventory, customers, cash flow — and takes real actions, not just answers.",
+      items: ["Plain-language business Q&A", "Auto-draft invoices & reports", "Stock & cash flow alerts", "Sales forecasting", "Inventory forecasting", "Natural language search", "Multi-language (English + Hindi)", "Learns from your business patterns"],
+      badges: ["GPT-4 Powered", "Business-context AI", "Action-not-just-answers", "Hindi + English"],
+      metrics: [
+        { label: "AI actions today", value: "142", sub: "invoices · POs · alerts" },
+        { label: "Time saved", value: "4.2h", sub: "per day avg" },
+        { label: "Accuracy", value: "99.1%", sub: "GST calculations" },
+      ],
+      mockup: <AIMockupTab />,
+      reverse: true,
+      accentClass: "bg-[color:var(--brand-electric)]/10 text-[color:var(--brand-electric)]",
+    },
+    {
+      id: "customers",
+      label: "Customers",
+      icon: UserCog,
+      eyebrow: "Customer Intelligence",
+      headline: "Know every customer. Grow every relationship.",
+      description: "Deep customer analytics across segments — VIP, loyal, new, churned. LTV tracking, churn prediction, loyalty rewards and automated re-engagement campaigns built in.",
+      items: ["Customer Segmentation (5 tiers)", "Lifetime Value Tracking", "Churn Risk Prediction", "Loyalty & Rewards Programme", "Automated Re-engagement", "Purchase Frequency Analysis", "Top Customer Leaderboard", "WhatsApp & SMS Campaigns"],
+      badges: ["LTV Analytics", "Churn Prediction", "Loyalty Rewards", "Auto Campaigns"],
+      metrics: [
+        { label: "VIP customers", value: "284", sub: "5% of base" },
+        { label: "Avg LTV", value: "₹18,420", sub: "+14% this quarter" },
+        { label: "Retention", value: "87%", sub: "12-month rate" },
+      ],
+      mockup: <CustomersMockup />,
+      reverse: false,
+      accentClass: "bg-[color:var(--brand-electric)]/10 text-[color:var(--brand-electric)]",
+    },
+    {
+      id: "branches",
+      label: "Multi-Branch",
+      icon: Building2,
+      eyebrow: "Multi-Branch Management",
+      headline: "Run every location from one command centre.",
+      description: "Unlimited branches, centralised reporting and branch-wise inventory — all visible from a single login. Role-based access ensures the right people see the right data.",
+      items: ["Unlimited Branch Management", "Centralised Dashboard", "Branch Performance Comparison", "Branch-wise Inventory", "Branch-wise Reports", "Central Billing", "Role-Based Access", "Stock Transfer Between Branches"],
+      badges: ["Unlimited Branches", "Central Billing", "Role-Based Access", "Stock Transfer"],
+      metrics: [
+        { label: "Active branches", value: "4", sub: "across 4 states" },
+        { label: "Combined revenue", value: "₹8.4L", sub: "+9.5% MTD" },
+        { label: "Stock transfers", value: "14", sub: "this month" },
+      ],
+      mockup: <MultiBranchMockup />,
+      reverse: true,
+      accentClass: "bg-sky-500/10 text-sky-600",
+    },
+  ];
+
+  const tab = tabs[activeTab];
+
+  return (
+    <section id="features" className="relative py-20 lg:py-28 overflow-hidden">
+      {/* Background */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,oklch(0.62_0.22_258/0.06),transparent_70%)]" />
+
+      <div className="mx-auto max-w-7xl px-6">
+        {/* Section header */}
+        <div className="mx-auto max-w-2xl text-center mb-10">
+          <SectionLabel>Product</SectionLabel>
+          <h2 className="mt-4 text-3xl font-black tracking-tight text-foreground sm:text-4xl lg:text-5xl">
+            Everything your business needs,{" "}
+            <span className="text-[color:var(--brand-electric)]">built in.</span>
+          </h2>
+          <p className="mt-4 text-base leading-relaxed text-muted-foreground lg:text-lg">
+            Click a module to explore it. One platform — billing, inventory, CRM, finance, AI and more.
+          </p>
+        </div>
+
+        {/* Tab navigation — scrollable on mobile */}
+        <div className="flex justify-center mb-12">
+          <div className="overflow-x-auto scrollbar-hide max-w-full">
+            <div className="inline-flex items-center gap-1 rounded-2xl border border-border bg-secondary/60 p-1.5 backdrop-blur">
+              {tabs.map((t, i) => (
+                <button
+                  key={t.id}
+                  onClick={() => setActiveTab(i)}
+                  className={`relative flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[13px] font-medium whitespace-nowrap transition-colors duration-150 ${
+                    activeTab === i
+                      ? "text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {activeTab === i && (
+                    <motion.div
+                      layoutId="tab-indicator"
+                      className="absolute inset-0 rounded-xl bg-white shadow-[0_1px_6px_oklch(0.14_0.02_260/0.12)]"
+                      transition={{ type: "spring", bounce: 0.18, duration: 0.38 }}
+                    />
+                  )}
+                  <t.icon className="relative z-10 h-3.5 w-3.5 flex-shrink-0" />
+                  <span className="relative z-10">{t.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Tab content with animation */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
+          >
+            {/* Metrics bar */}
+            <div className="mb-10 grid grid-cols-3 gap-4 lg:gap-6">
+              {tab.metrics.map((m) => (
+                <div key={m.label} className="rounded-2xl border border-border bg-white px-5 py-4 shadow-[0_1px_4px_oklch(0.14_0.02_260/0.07)]">
+                  <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{m.label}</p>
+                  <p className="mt-1.5 text-2xl font-black text-foreground leading-none">{m.value}</p>
+                  {m.sub && <p className="mt-1 text-[11px] text-muted-foreground">{m.sub}</p>}
+                </div>
+              ))}
+            </div>
+
+            {/* Main 2-col layout */}
+            <div className={`grid grid-cols-1 items-center gap-12 lg:grid-cols-[1.1fr_0.9fr] ${tab.reverse ? "lg:grid-cols-[0.9fr_1.1fr]" : ""}`}>
+              {/* Mockup */}
+              <div className={`relative ${tab.reverse ? "lg:order-2" : "lg:order-1"}`}>
+                {tab.mockup}
+              </div>
+
+              {/* Copy */}
+              <div className={`${tab.reverse ? "lg:order-1 lg:pr-6" : "lg:order-2 lg:pl-6"}`}>
+                <SectionLabel>{tab.eyebrow}</SectionLabel>
+                <h3 className="mt-4 text-2xl font-black leading-[1.15] tracking-tight text-foreground sm:text-3xl lg:text-[2.1rem]">
+                  {tab.headline}
+                </h3>
+                <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">
+                  {tab.description}
+                </p>
+
+                {/* Feature checklist */}
+                <ul className="mt-7 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                  {tab.items.map((item) => (
+                    <li key={item} className="flex items-center gap-2.5 text-sm text-foreground">
+                      <span className="grid h-5 w-5 flex-shrink-0 place-items-center rounded-full bg-[color:var(--brand-electric)]/10">
+                        <Check className="h-3 w-3 text-[color:var(--brand-electric)]" />
+                      </span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+
+                {/* Trust badges */}
+                <div className="mt-7 flex flex-wrap gap-2">
+                  {tab.badges.map((b) => (
+                    <span
+                      key={b}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5 text-[11px] font-semibold text-foreground shadow-[0_1px_4px_oklch(0.14_0.02_260/0.08)]"
+                    >
+                      <CheckCircle2 className="h-3 w-3 text-[color:var(--brand-electric)]" />
+                      {b}
+                    </span>
+                  ))}
+                </div>
+
+                {/* CTA */}
+                <div className="mt-7">
+                  <a
+                    href="#pricing"
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-[color:var(--brand-electric)] transition-all duration-200 hover:gap-3"
+                  >
+                    Start with {tab.label} free
+                    <ArrowRight className="h-4 w-4" />
+                  </a>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </section>
   );
 }
 
