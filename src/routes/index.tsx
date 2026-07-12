@@ -1318,44 +1318,170 @@ function FAQ() {
 
 /* ---------- Final CTA ---------- */
 
-const ROADMAP = [
-  { icon: CalendarDays, title: "Appointment Management", desc: "Bookings, calendars and reminders for service businesses." },
-  { icon: MessageCircle, title: "WhatsApp Integration", desc: "Send invoices, receipts and reminders on WhatsApp Business." },
-  { icon: Sparkles, title: "Advanced AI Automation", desc: "Automated workflows, follow-ups and daily briefings." },
-  { icon: Mic, title: "Voice Commands", desc: "Create invoices and get insights hands-free with your voice." },
-  { icon: Building2, title: "Multi-Branch Management", desc: "Consolidated reporting and stock across every location." },
-  { icon: Smartphone, title: "Mobile App", desc: "Native iOS and Android apps that stay in sync everywhere." },
-  { icon: LineChart, title: "Advanced Analytics", desc: "Cohorts, forecasts and profitability insights." },
+const ROADMAP: {
+  icon: typeof Receipt;
+  title: string;
+  desc: string;
+  items: string[];
+}[] = [
+  {
+    icon: UserCog,
+    title: "Employee Management",
+    desc: "A complete HR toolkit — attendance, payroll and performance built into your business OS.",
+    items: [
+      "Employee Profiles",
+      "Attendance",
+      "Leave Management",
+      "Payroll",
+      "Salary Management",
+      "Shift Scheduling",
+      "Departments",
+      "Performance Tracking",
+      "Employee Mobile App",
+    ],
+  },
+  {
+    icon: ShieldCheck,
+    title: "Role & Permission Management",
+    desc: "Granular access control with pre-built roles and approval workflows for every business shape.",
+    items: [
+      "Super Admin",
+      "Admin",
+      "Manager",
+      "Cashier",
+      "Sales Executive",
+      "Accountant",
+      "Warehouse Staff",
+      "Custom Roles",
+      "Custom Permissions",
+      "Activity Logs",
+      "Approval Workflows",
+    ],
+  },
+  {
+    icon: MessageCircle,
+    title: "WhatsApp Business",
+    desc: "Sell, notify and support your customers where they already spend their time — WhatsApp.",
+    items: [
+      "Send Invoices",
+      "Payment Reminders",
+      "Order Notifications",
+      "AI Customer Chat",
+      "Broadcast Messages",
+      "Order Status Updates",
+      "WhatsApp Catalog",
+      "Business Verification Support",
+    ],
+  },
+  {
+    icon: Puzzle,
+    title: "Integrations",
+    desc: "Connect Nexora to the tools, payment rails and hardware your business already uses.",
+    items: [
+      "Google Drive",
+      "Google Sheets",
+      "Microsoft Excel",
+      "Outlook",
+      "Gmail",
+      "PhonePe",
+      "Razorpay",
+      "Stripe",
+      "UPI",
+      "API Access",
+      "Webhooks",
+      "POS Machines",
+      "Thermal Printers",
+      "Barcode Scanners",
+    ],
+  },
+  {
+    icon: Smartphone,
+    title: "Mobile Apps",
+    desc: "Native Android and iOS apps to run the whole business from your pocket — even offline.",
+    items: [
+      "Android App",
+      "iOS App",
+      "Offline Mode",
+      "Push Notifications",
+      "Mobile Dashboard",
+    ],
+  },
+  {
+    icon: Bot,
+    title: "Advanced AI",
+    desc: "Specialised AI agents that handle sales, inventory, accounting, marketing and support.",
+    items: [
+      "Voice Assistant",
+      "AI Sales Agent",
+      "AI Inventory Manager",
+      "AI Accountant",
+      "AI Marketing Assistant",
+      "AI Customer Support",
+      "AI Workflow Automation",
+      "AI Document Processing",
+    ],
+  },
 ];
 
 function ComingSoon() {
   return (
-    <section id="roadmap" className="relative py-24 lg:py-32">
+    <section id="roadmap" className="relative overflow-hidden py-24 lg:py-32">
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(900px_500px_at_50%_0%,oklch(0.72_0.19_250/0.15),transparent_60%)]" />
       <div className="mx-auto max-w-7xl px-6">
-        <SectionHeading
-          eyebrow="Roadmap"
-          title="Coming soon to Nexora Billing."
-          subtitle="Big things on the way. Here's a peek at what our team is building next."
-        />
-        <div className="mt-16 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {ROADMAP.map((r) => (
+        <div className="mx-auto max-w-2xl text-center">
+          <span className="inline-flex items-center gap-2 rounded-full border border-[color:var(--brand-electric)]/30 bg-[color:var(--brand-electric)]/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--brand-electric)]">
+            <Zap className="h-3 w-3" /> On the roadmap
+          </span>
+          <h2 className="mt-4 text-3xl font-black tracking-tight text-foreground sm:text-4xl lg:text-5xl">
+            Coming soon to <span className="text-gradient">Nexora Billing</span>.
+          </h2>
+          <p className="mt-4 text-base leading-relaxed text-muted-foreground sm:text-lg">
+            The platform is evolving fast. Here's a transparent look at what's
+            being built next — every feature below is <b>planned</b> and not yet
+            available.
+          </p>
+        </div>
+
+        <div className="mt-16 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {ROADMAP.map((r, i) => (
             <div
               key={r.title}
-              className="relative overflow-hidden rounded-2xl border border-dashed border-border bg-card/60 p-6 backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:border-[color:var(--brand-electric)]/40"
+              className="group relative overflow-hidden rounded-3xl border border-dashed border-border bg-card/70 p-7 backdrop-blur transition-all duration-500 hover:-translate-y-1 hover:border-[color:var(--brand-electric)]/50 hover:bg-card hover:shadow-[var(--shadow-elegant)]"
+              style={{ animationDelay: `${i * 60}ms` }}
             >
-              <div className="flex items-center justify-between">
-                <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-secondary text-[color:var(--brand-deep)]">
+              <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-[image:var(--gradient-brand)] opacity-0 blur-3xl transition-opacity duration-500 group-hover:opacity-20" />
+              <div className="flex items-start justify-between gap-3">
+                <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-[color:var(--brand-deep)] transition-all duration-500 group-hover:bg-[image:var(--gradient-brand)] group-hover:text-white">
                   <r.icon className="h-5 w-5" />
                 </div>
-                <span className="rounded-full border border-[color:var(--brand-electric)]/30 bg-[color:var(--brand-electric)]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--brand-electric)]">
-                  Coming soon
+                <span className="inline-flex items-center gap-1 rounded-full border border-[color:var(--brand-electric)]/30 bg-[color:var(--brand-electric)]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--brand-electric)]">
+                  <Clock3 className="h-3 w-3" /> Planned
                 </span>
               </div>
-              <h3 className="mt-5 text-base font-semibold text-foreground">{r.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{r.desc}</p>
+              <h3 className="mt-5 text-lg font-bold text-foreground">{r.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                {r.desc}
+              </p>
+              <div className="mt-5 flex flex-wrap gap-1.5">
+                {r.items.map((it) => (
+                  <span
+                    key={it}
+                    className="inline-flex items-center gap-1 rounded-full border border-border bg-background/70 px-2.5 py-1 text-[11px] font-medium text-foreground/80 transition-colors group-hover:border-[color:var(--brand-electric)]/30"
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--brand-electric)]/60" />
+                    {it}
+                  </span>
+                ))}
+              </div>
             </div>
           ))}
         </div>
+
+        <p className="mx-auto mt-14 max-w-xl text-center text-xs text-muted-foreground">
+          Roadmap items are shared for transparency. Delivery timing may change —
+          they are <b>not available today</b>. Follow along or request early
+          access via <a className="underline underline-offset-4 hover:text-foreground" href="#contact">Contact</a>.
+        </p>
       </div>
     </section>
   );
