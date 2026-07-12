@@ -340,7 +340,7 @@ type FeatureCategory = {
   tagline: string;
   desc: string;
   items: string[];
-  preview: () => JSX.Element;
+  preview: () => React.ReactElement;
 };
 
 const FEATURE_CATEGORIES: FeatureCategory[] = [
