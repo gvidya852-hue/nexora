@@ -18,7 +18,16 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
-import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/_app'
+import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/_app/settings'
+import { Route as AuthenticatedAppReportsRouteImport } from './routes/_authenticated/_app/reports'
+import { Route as AuthenticatedAppInventoryRouteImport } from './routes/_authenticated/_app/inventory'
+import { Route as AuthenticatedAppHelpRouteImport } from './routes/_authenticated/_app/help'
+import { Route as AuthenticatedAppFinanceRouteImport } from './routes/_authenticated/_app/finance'
+import { Route as AuthenticatedAppDashboardRouteImport } from './routes/_authenticated/_app/dashboard'
+import { Route as AuthenticatedAppCrmRouteImport } from './routes/_authenticated/_app/crm'
+import { Route as AuthenticatedAppBillingRouteImport } from './routes/_authenticated/_app/billing'
+import { Route as AuthenticatedAppAiAssistantRouteImport } from './routes/_authenticated/_app/ai-assistant'
 
 const VerifyEmailRoute = VerifyEmailRouteImport.update({
   id: '/verify-email',
@@ -64,11 +73,59 @@ const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
+const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
+  id: '/_app',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAppSettingsRoute =
+  AuthenticatedAppSettingsRouteImport.update({
+    id: '/settings',
+    path: '/settings',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppReportsRoute = AuthenticatedAppReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppInventoryRoute =
+  AuthenticatedAppInventoryRouteImport.update({
+    id: '/inventory',
+    path: '/inventory',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppHelpRoute = AuthenticatedAppHelpRouteImport.update({
+  id: '/help',
+  path: '/help',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppFinanceRoute = AuthenticatedAppFinanceRouteImport.update({
+  id: '/finance',
+  path: '/finance',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppDashboardRoute =
+  AuthenticatedAppDashboardRouteImport.update({
+    id: '/dashboard',
+    path: '/dashboard',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppCrmRoute = AuthenticatedAppCrmRouteImport.update({
+  id: '/crm',
+  path: '/crm',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppBillingRoute = AuthenticatedAppBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppAiAssistantRoute =
+  AuthenticatedAppAiAssistantRouteImport.update({
+    id: '/ai-assistant',
+    path: '/ai-assistant',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -77,9 +134,17 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/verify-email': typeof VerifyEmailRoute
-  '/dashboard': typeof AuthenticatedDashboardRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/ai-assistant': typeof AuthenticatedAppAiAssistantRoute
+  '/billing': typeof AuthenticatedAppBillingRoute
+  '/crm': typeof AuthenticatedAppCrmRoute
+  '/dashboard': typeof AuthenticatedAppDashboardRoute
+  '/finance': typeof AuthenticatedAppFinanceRoute
+  '/help': typeof AuthenticatedAppHelpRoute
+  '/inventory': typeof AuthenticatedAppInventoryRoute
+  '/reports': typeof AuthenticatedAppReportsRoute
+  '/settings': typeof AuthenticatedAppSettingsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -88,9 +153,17 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/verify-email': typeof VerifyEmailRoute
-  '/dashboard': typeof AuthenticatedDashboardRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/ai-assistant': typeof AuthenticatedAppAiAssistantRoute
+  '/billing': typeof AuthenticatedAppBillingRoute
+  '/crm': typeof AuthenticatedAppCrmRoute
+  '/dashboard': typeof AuthenticatedAppDashboardRoute
+  '/finance': typeof AuthenticatedAppFinanceRoute
+  '/help': typeof AuthenticatedAppHelpRoute
+  '/inventory': typeof AuthenticatedAppInventoryRoute
+  '/reports': typeof AuthenticatedAppReportsRoute
+  '/settings': typeof AuthenticatedAppSettingsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -101,9 +174,18 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/verify-email': typeof VerifyEmailRoute
-  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/_app': typeof AuthenticatedAppRouteWithChildren
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/_authenticated/_app/ai-assistant': typeof AuthenticatedAppAiAssistantRoute
+  '/_authenticated/_app/billing': typeof AuthenticatedAppBillingRoute
+  '/_authenticated/_app/crm': typeof AuthenticatedAppCrmRoute
+  '/_authenticated/_app/dashboard': typeof AuthenticatedAppDashboardRoute
+  '/_authenticated/_app/finance': typeof AuthenticatedAppFinanceRoute
+  '/_authenticated/_app/help': typeof AuthenticatedAppHelpRoute
+  '/_authenticated/_app/inventory': typeof AuthenticatedAppInventoryRoute
+  '/_authenticated/_app/reports': typeof AuthenticatedAppReportsRoute
+  '/_authenticated/_app/settings': typeof AuthenticatedAppSettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -114,9 +196,17 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/verify-email'
-    | '/dashboard'
     | '/onboarding'
     | '/auth/callback'
+    | '/ai-assistant'
+    | '/billing'
+    | '/crm'
+    | '/dashboard'
+    | '/finance'
+    | '/help'
+    | '/inventory'
+    | '/reports'
+    | '/settings'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -125,9 +215,17 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/verify-email'
-    | '/dashboard'
     | '/onboarding'
     | '/auth/callback'
+    | '/ai-assistant'
+    | '/billing'
+    | '/crm'
+    | '/dashboard'
+    | '/finance'
+    | '/help'
+    | '/inventory'
+    | '/reports'
+    | '/settings'
   id:
     | '__root__'
     | '/'
@@ -137,9 +235,18 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/verify-email'
-    | '/_authenticated/dashboard'
+    | '/_authenticated/_app'
     | '/_authenticated/onboarding'
     | '/auth/callback'
+    | '/_authenticated/_app/ai-assistant'
+    | '/_authenticated/_app/billing'
+    | '/_authenticated/_app/crm'
+    | '/_authenticated/_app/dashboard'
+    | '/_authenticated/_app/finance'
+    | '/_authenticated/_app/help'
+    | '/_authenticated/_app/inventory'
+    | '/_authenticated/_app/reports'
+    | '/_authenticated/_app/settings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -218,23 +325,113 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOnboardingRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/dashboard': {
-      id: '/_authenticated/dashboard'
+    '/_authenticated/_app': {
+      id: '/_authenticated/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedAppRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/_app/settings': {
+      id: '/_authenticated/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedAppSettingsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/_app/reports': {
+      id: '/_authenticated/_app/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AuthenticatedAppReportsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/_app/inventory': {
+      id: '/_authenticated/_app/inventory'
+      path: '/inventory'
+      fullPath: '/inventory'
+      preLoaderRoute: typeof AuthenticatedAppInventoryRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/_app/help': {
+      id: '/_authenticated/_app/help'
+      path: '/help'
+      fullPath: '/help'
+      preLoaderRoute: typeof AuthenticatedAppHelpRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/_app/finance': {
+      id: '/_authenticated/_app/finance'
+      path: '/finance'
+      fullPath: '/finance'
+      preLoaderRoute: typeof AuthenticatedAppFinanceRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/_app/dashboard': {
+      id: '/_authenticated/_app/dashboard'
       path: '/dashboard'
       fullPath: '/dashboard'
-      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
-      parentRoute: typeof AuthenticatedRoute
+      preLoaderRoute: typeof AuthenticatedAppDashboardRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/_app/crm': {
+      id: '/_authenticated/_app/crm'
+      path: '/crm'
+      fullPath: '/crm'
+      preLoaderRoute: typeof AuthenticatedAppCrmRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/_app/billing': {
+      id: '/_authenticated/_app/billing'
+      path: '/billing'
+      fullPath: '/billing'
+      preLoaderRoute: typeof AuthenticatedAppBillingRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/_app/ai-assistant': {
+      id: '/_authenticated/_app/ai-assistant'
+      path: '/ai-assistant'
+      fullPath: '/ai-assistant'
+      preLoaderRoute: typeof AuthenticatedAppAiAssistantRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
     }
   }
 }
 
+interface AuthenticatedAppRouteChildren {
+  AuthenticatedAppAiAssistantRoute: typeof AuthenticatedAppAiAssistantRoute
+  AuthenticatedAppBillingRoute: typeof AuthenticatedAppBillingRoute
+  AuthenticatedAppCrmRoute: typeof AuthenticatedAppCrmRoute
+  AuthenticatedAppDashboardRoute: typeof AuthenticatedAppDashboardRoute
+  AuthenticatedAppFinanceRoute: typeof AuthenticatedAppFinanceRoute
+  AuthenticatedAppHelpRoute: typeof AuthenticatedAppHelpRoute
+  AuthenticatedAppInventoryRoute: typeof AuthenticatedAppInventoryRoute
+  AuthenticatedAppReportsRoute: typeof AuthenticatedAppReportsRoute
+  AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
+}
+
+const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
+  AuthenticatedAppAiAssistantRoute: AuthenticatedAppAiAssistantRoute,
+  AuthenticatedAppBillingRoute: AuthenticatedAppBillingRoute,
+  AuthenticatedAppCrmRoute: AuthenticatedAppCrmRoute,
+  AuthenticatedAppDashboardRoute: AuthenticatedAppDashboardRoute,
+  AuthenticatedAppFinanceRoute: AuthenticatedAppFinanceRoute,
+  AuthenticatedAppHelpRoute: AuthenticatedAppHelpRoute,
+  AuthenticatedAppInventoryRoute: AuthenticatedAppInventoryRoute,
+  AuthenticatedAppReportsRoute: AuthenticatedAppReportsRoute,
+  AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
+}
+
+const AuthenticatedAppRouteWithChildren =
+  AuthenticatedAppRoute._addFileChildren(AuthenticatedAppRouteChildren)
+
 interface AuthenticatedRouteChildren {
-  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedAppRoute: typeof AuthenticatedAppRouteWithChildren
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
-  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedAppRoute: AuthenticatedAppRouteWithChildren,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
 }
 
