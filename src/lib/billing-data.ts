@@ -7,26 +7,36 @@
 import { products, type Product } from "@/lib/inventory-data";
 
 export type InvoiceStatus = "draft" | "sent" | "paid" | "partial" | "overdue" | "cancelled";
-export type PaymentMode = "cash" | "upi" | "card" | "bank-transfer" | "credit" | "wallet";
+export type PaymentMode = "cash" | "upi" | "card" | "bank-transfer" | "neft" | "rtgs" | "credit" | "wallet" | "cheque";
 export type PaymentStatus = "paid" | "pending" | "partial" | "overdue";
 export type QuotationStatus = "draft" | "sent" | "accepted" | "rejected" | "expired";
 export type RecurringFrequency = "weekly" | "monthly" | "quarterly" | "yearly";
 export type RecurringStatus = "active" | "paused";
 export type CreditNoteStatus = "issued" | "adjusted" | "refunded";
-export type PaymentTxnStatus = "received" | "pending" | "refunded";
+export type PaymentTxnStatus = "received" | "pending" | "refunded" | "cancelled";
+export type CustomerType = "retail" | "wholesale" | "distributor" | "corporate" | "government";
+export type DocumentType = "invoice" | "quotation" | "proforma" | "delivery-challan" | "credit-note" | "debit-note" | "recurring";
 
 export interface Customer {
   id: string;
   name: string;
   contactPerson: string;
   gstin: string;
+  pan: string;
   phone: string;
   email: string;
   address: string;
   shippingAddress: string;
+  alternateShippingAddresses: string[];
   city: string;
   state: string;
+  customerType: CustomerType;
+  creditLimit: number;
+  creditDays: number;
   outstandingBalance: number;
+  totalPurchases: number;
+  lastPurchase: string;
+  customerRating: number; // 1-5
 }
 
 export interface InvoiceItem {
@@ -49,9 +59,19 @@ export interface Invoice {
   dueDate: string;
   amountPaid: number;
   notes: string;
+  internalNotes?: string;
   terms: string;
   placeOfSupply: string;
   isInterState: boolean;
+  // Enterprise fields (optional for backward-compat with existing mock data)
+  salesperson?: string;
+  referenceNumber?: string;
+  poNumber?: string;
+  deliveryDate?: string;
+  deliveryAddress?: string;
+  billingAddress?: string;
+  currency?: string;
+  exchangeRate?: number;
 }
 
 export interface Quotation {
@@ -75,6 +95,43 @@ export interface CreditNote {
   reason: string;
   status: CreditNoteStatus;
   createdDate: string;
+}
+
+export interface DebitNote {
+  id: string;
+  debitNoteNumber: string;
+  invoiceId: string;
+  customerId: string;
+  amount: number;
+  reason: string;
+  status: "issued" | "settled";
+  createdDate: string;
+}
+
+export interface ProformaInvoice {
+  id: string;
+  proformaNumber: string;
+  customerId: string;
+  items: InvoiceItem[];
+  createdDate: string;
+  validUntil: string;
+  notes: string;
+  status: "draft" | "sent" | "converted" | "expired";
+  convertedInvoiceId?: string;
+}
+
+export interface DeliveryChallan {
+  id: string;
+  challanNumber: string;
+  invoiceId?: string;
+  customerId: string;
+  items: InvoiceItem[];
+  createdDate: string;
+  deliveryDate: string;
+  deliveryAddress: string;
+  vehicleNumber?: string;
+  driverName?: string;
+  status: "draft" | "in-transit" | "delivered" | "returned";
 }
 
 export interface RecurringInvoice {
@@ -101,6 +158,7 @@ export interface PaymentTxn {
   date: string;
   time: string;
   notes: string;
+  transactionRef?: string;
 }
 
 export interface InvoiceTemplate {
@@ -111,11 +169,31 @@ export interface InvoiceTemplate {
   isDefault: boolean;
 }
 
+export interface Salesperson {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  region: string;
+  totalSales: number;
+}
+
+export interface ActivityEvent {
+  id: string;
+  type: "invoice-created" | "invoice-paid" | "invoice-edited" | "invoice-printed" | "draft-saved" | "payment-received" | "quotation-sent" | "credit-note-issued";
+  title: string;
+  subtitle: string;
+  timestamp: string;
+  invoiceId?: string;
+  amount?: number;
+}
+
 // ── Company (issuer) profile ───────────────────────────────────────
 
 export const company = {
   name: "Nexora Retail Solutions Pvt Ltd",
   gstin: "27AAFCN4455K1Z9",
+  pan: "AAFCN4455K",
   address: "4th Floor, Prestige Tech Park, Kadubeesanahalli, Bengaluru, Karnataka 560103",
   phone: "+91 80 4567 8900",
   email: "billing@nexora.app",
@@ -125,6 +203,15 @@ export const company = {
   state: "Karnataka",
 };
 
+// ── Salespersons ──────────────────────────────────────────────────
+
+export const salespersons: Salesperson[] = [
+  { id: "sp1", name: "Arjun Mehta", email: "arjun@nexora.app", phone: "+91 98451 00001", region: "South", totalSales: 542000 },
+  { id: "sp2", name: "Divya Krishnan", email: "divya@nexora.app", phone: "+91 98451 00002", region: "North", totalSales: 389000 },
+  { id: "sp3", name: "Rohan Verma", email: "rohan@nexora.app", phone: "+91 98451 00003", region: "West", totalSales: 610000 },
+  { id: "sp4", name: "Sneha Patel", email: "sneha@nexora.app", phone: "+91 98451 00004", region: "East", totalSales: 275000 },
+];
+
 // ── Customers ───────────────────────────────────────────────────────
 
 export const customers: Customer[] = [
@@ -133,104 +220,174 @@ export const customers: Customer[] = [
     name: "Priya Traders",
     contactPerson: "Priya Sharma",
     gstin: "29AABCU9603R1ZM",
+    pan: "AABCU9603R",
     phone: "+91 98450 12345",
     email: "priya@priyatraders.in",
     address: "12 MG Road, Bengaluru, Karnataka 560001",
     shippingAddress: "12 MG Road, Bengaluru, Karnataka 560001",
+    alternateShippingAddresses: ["Warehouse 3, Peenya Industrial Area, Bengaluru 560058"],
     city: "Bengaluru",
     state: "Karnataka",
+    customerType: "retail",
+    creditLimit: 200000,
+    creditDays: 30,
     outstandingBalance: 24780,
+    totalPurchases: 987450,
+    lastPurchase: "2026-07-10",
+    customerRating: 5,
   },
   {
     id: "cu2",
     name: "Gupta & Sons",
     contactPerson: "Rajesh Gupta",
     gstin: "07AAACG1234N1Z8",
+    pan: "AAACG1234N",
     phone: "+91 98110 22334",
     email: "rajesh@guptasons.co.in",
     address: "45 Chandni Chowk, New Delhi 110006",
     shippingAddress: "45 Chandni Chowk, New Delhi 110006",
+    alternateShippingAddresses: ["Plot 12, Naraina Industrial Area, New Delhi 110028"],
     city: "New Delhi",
     state: "Delhi",
+    customerType: "wholesale",
+    creditLimit: 150000,
+    creditDays: 15,
     outstandingBalance: 18900,
+    totalPurchases: 634200,
+    lastPurchase: "2026-07-11",
+    customerRating: 4,
   },
   {
     id: "cu3",
     name: "Halcyon Group",
     contactPerson: "Ananya Iyer",
     gstin: "33AAECH5678M1Z3",
+    pan: "AAECH5678M",
     phone: "+91 94440 55667",
     email: "ananya@halcyongroup.in",
     address: "78 Anna Salai, Chennai, Tamil Nadu 600002",
     shippingAddress: "78 Anna Salai, Chennai, Tamil Nadu 600002",
+    alternateShippingAddresses: [
+      "Halcyon Warehouse, Ambattur Industrial Estate, Chennai 600058",
+      "Halcyon South Hub, OMR Road, Chennai 600097",
+    ],
     city: "Chennai",
     state: "Tamil Nadu",
+    customerType: "corporate",
+    creditLimit: 500000,
+    creditDays: 45,
     outstandingBalance: 120000,
+    totalPurchases: 2450000,
+    lastPurchase: "2026-07-12",
+    customerRating: 4,
   },
   {
     id: "cu4",
     name: "Sundar Electronics",
     contactPerson: "Sundar Rajan",
     gstin: "33AABFS2345P1Z1",
+    pan: "AABFS2345P",
     phone: "+91 90030 88990",
     email: "sundar@sundarelectronics.com",
     address: "22 Ranganathan St, Chennai, Tamil Nadu 600017",
     shippingAddress: "22 Ranganathan St, Chennai, Tamil Nadu 600017",
+    alternateShippingAddresses: [],
     city: "Chennai",
     state: "Tamil Nadu",
+    customerType: "retail",
+    creditLimit: 100000,
+    creditDays: 7,
     outstandingBalance: 0,
+    totalPurchases: 412300,
+    lastPurchase: "2026-07-09",
+    customerRating: 5,
   },
   {
     id: "cu5",
     name: "Meera Enterprises",
     contactPerson: "Meera Nair",
     gstin: "32AABCM6789Q1Z6",
+    pan: "AABCM6789Q",
     phone: "+91 94950 66778",
     email: "meera@meeraenterprises.in",
     address: "9 MG Road, Kochi, Kerala 682016",
     shippingAddress: "9 MG Road, Kochi, Kerala 682016",
+    alternateShippingAddresses: ["Meera Cold Store, Edappally, Kochi 682024"],
     city: "Kochi",
     state: "Kerala",
+    customerType: "distributor",
+    creditLimit: 300000,
+    creditDays: 30,
     outstandingBalance: 8400,
+    totalPurchases: 780000,
+    lastPurchase: "2026-07-12",
+    customerRating: 4,
   },
   {
     id: "cu6",
     name: "Om Distributors",
     contactPerson: "Omkar Patil",
     gstin: "27AABCO7890R1Z4",
+    pan: "AABCO7890R",
     phone: "+91 98220 99887",
     email: "omkar@omdistributors.in",
     address: "31 FC Road, Pune, Maharashtra 411005",
     shippingAddress: "31 FC Road, Pune, Maharashtra 411005",
+    alternateShippingAddresses: ["Om Godown, Bhosari MIDC, Pune 411026"],
     city: "Pune",
     state: "Maharashtra",
+    customerType: "wholesale",
+    creditLimit: 250000,
+    creditDays: 30,
     outstandingBalance: 45200,
+    totalPurchases: 1120000,
+    lastPurchase: "2026-06-30",
+    customerRating: 3,
   },
   {
     id: "cu7",
     name: "Kavya Retail Hub",
     contactPerson: "Kavya Reddy",
     gstin: "36AABCK8901S1Z2",
+    pan: "AABCK8901S",
     phone: "+91 90000 11223",
     email: "kavya@kavyaretail.in",
     address: "5 Jubilee Hills, Hyderabad, Telangana 500033",
     shippingAddress: "5 Jubilee Hills, Hyderabad, Telangana 500033",
+    alternateShippingAddresses: [
+      "Kavya Store 2, Kukatpally, Hyderabad 500072",
+      "Kavya Outlet 3, Gachibowli, Hyderabad 500032",
+    ],
     city: "Hyderabad",
     state: "Telangana",
+    customerType: "retail",
+    creditLimit: 400000,
+    creditDays: 21,
     outstandingBalance: 61000,
+    totalPurchases: 1680000,
+    lastPurchase: "2026-07-08",
+    customerRating: 4,
   },
   {
     id: "cu8",
     name: "Deshmukh Traders",
     contactPerson: "Vivek Deshmukh",
     gstin: "27AABCD9012T1Z9",
+    pan: "AABCD9012T",
     phone: "+91 98600 33445",
     email: "vivek@deshmukhtraders.in",
     address: "17 JM Road, Pune, Maharashtra 411004",
     shippingAddress: "17 JM Road, Pune, Maharashtra 411004",
+    alternateShippingAddresses: [],
     city: "Pune",
     state: "Maharashtra",
+    customerType: "retail",
+    creditLimit: 75000,
+    creditDays: 7,
     outstandingBalance: 0,
+    totalPurchases: 218700,
+    lastPurchase: "2026-07-13",
+    customerRating: 5,
   },
 ];
 
@@ -252,6 +409,8 @@ export const invoices: Invoice[] = [
     terms: "Payment due within 7 days.",
     placeOfSupply: "Delhi",
     isInterState: true,
+    salesperson: "Divya Krishnan",
+    referenceNumber: "REF-GS-001",
   },
   {
     id: "inv2",
@@ -271,6 +430,8 @@ export const invoices: Invoice[] = [
     terms: "Payment due within 10 days.",
     placeOfSupply: "Karnataka",
     isInterState: false,
+    salesperson: "Arjun Mehta",
+    poNumber: "PO-PT-2026-004",
   },
   {
     id: "inv3",
@@ -287,6 +448,9 @@ export const invoices: Invoice[] = [
     terms: "Payment due within 10 days.",
     placeOfSupply: "Tamil Nadu",
     isInterState: true,
+    salesperson: "Arjun Mehta",
+    referenceNumber: "REF-HG-009",
+    poNumber: "PO-HG-2026-021",
   },
   {
     id: "inv4",
@@ -303,6 +467,7 @@ export const invoices: Invoice[] = [
     terms: "Payment due within 7 days.",
     placeOfSupply: "Karnataka",
     isInterState: false,
+    salesperson: "Arjun Mehta",
   },
   {
     id: "inv5",
@@ -322,6 +487,8 @@ export const invoices: Invoice[] = [
     terms: "Payment due within 10 days.",
     placeOfSupply: "Kerala",
     isInterState: true,
+    salesperson: "Sneha Patel",
+    referenceNumber: "REF-ME-014",
   },
   {
     id: "inv6",
@@ -338,6 +505,7 @@ export const invoices: Invoice[] = [
     terms: "Payment due within 7 days.",
     placeOfSupply: "Tamil Nadu",
     isInterState: true,
+    salesperson: "Arjun Mehta",
   },
   {
     id: "inv7",
@@ -354,6 +522,8 @@ export const invoices: Invoice[] = [
     terms: "Payment due within 10 days.",
     placeOfSupply: "Maharashtra",
     isInterState: false,
+    salesperson: "Rohan Verma",
+    referenceNumber: "REF-OD-007",
   },
   {
     id: "inv8",
@@ -372,6 +542,8 @@ export const invoices: Invoice[] = [
     terms: "Payment due within 10 days.",
     placeOfSupply: "Telangana",
     isInterState: true,
+    salesperson: "Rohan Verma",
+    poNumber: "PO-KR-2026-008",
   },
   {
     id: "inv9",
@@ -388,6 +560,7 @@ export const invoices: Invoice[] = [
     terms: "Payment due within 7 days.",
     placeOfSupply: "Tamil Nadu",
     isInterState: false,
+    salesperson: "Arjun Mehta",
   },
   {
     id: "inv10",
@@ -403,9 +576,12 @@ export const invoices: Invoice[] = [
     dueDate: "2026-07-23",
     amountPaid: 0,
     notes: "Awaiting confirmation from customer.",
+    internalNotes: "Customer prefers RTGS payment. Check stock before dispatch.",
     terms: "Payment due within 10 days.",
     placeOfSupply: "Maharashtra",
     isInterState: false,
+    salesperson: "Rohan Verma",
+    referenceNumber: "REF-DT-003",
   },
   {
     id: "inv11",
@@ -422,6 +598,7 @@ export const invoices: Invoice[] = [
     terms: "Payment due within 10 days.",
     placeOfSupply: "Delhi",
     isInterState: true,
+    salesperson: "Divya Krishnan",
   },
   {
     id: "inv12",
@@ -438,6 +615,7 @@ export const invoices: Invoice[] = [
     terms: "Payment due within 10 days.",
     placeOfSupply: "Maharashtra",
     isInterState: false,
+    salesperson: "Rohan Verma",
   },
 ];
 
@@ -511,9 +689,116 @@ export const quotations: Quotation[] = [
   },
 ];
 
+// ── Proforma Invoices ─────────────────────────────────────────────
+
+export const proformaInvoices: ProformaInvoice[] = [
+  {
+    id: "pi1",
+    proformaNumber: "PRO-2026-0001",
+    customerId: "cu3",
+    status: "sent",
+    items: [{ productId: "p1", quantity: 5, unitPrice: 49999, discountPercent: 3, gstPercent: 18 }],
+    createdDate: "2026-07-10",
+    validUntil: "2026-07-24",
+    notes: "Proforma for bulk laptop procurement. Subject to stock availability.",
+    convertedInvoiceId: undefined,
+  },
+  {
+    id: "pi2",
+    proformaNumber: "PRO-2026-0002",
+    customerId: "cu5",
+    status: "converted",
+    items: [{ productId: "p10", quantity: 8, unitPrice: 14999, discountPercent: 2, gstPercent: 18 }],
+    createdDate: "2026-07-01",
+    validUntil: "2026-07-15",
+    notes: "Converted to INV-2026-0045.",
+    convertedInvoiceId: "inv5",
+  },
+  {
+    id: "pi3",
+    proformaNumber: "PRO-2026-0003",
+    customerId: "cu7",
+    status: "draft",
+    items: [
+      { productId: "p8", quantity: 12, unitPrice: 5799, discountPercent: 5, gstPercent: 18 },
+      { productId: "p9", quantity: 10, unitPrice: 3299, discountPercent: 0, gstPercent: 18 },
+    ],
+    createdDate: "2026-07-13",
+    validUntil: "2026-07-27",
+    notes: "Pending customer approval.",
+  },
+];
+
+// ── Delivery Challans ─────────────────────────────────────────────
+
+export const deliveryChallans: DeliveryChallan[] = [
+  {
+    id: "dc1",
+    challanNumber: "DC-2026-0001",
+    invoiceId: "inv4",
+    customerId: "cu1",
+    items: [{ productId: "p11", quantity: 6, unitPrice: 4499, discountPercent: 0, gstPercent: 18 }],
+    createdDate: "2026-07-12",
+    deliveryDate: "2026-07-13",
+    deliveryAddress: "12 MG Road, Bengaluru, Karnataka 560001",
+    vehicleNumber: "KA-01-AB-1234",
+    driverName: "Suresh Kumar",
+    status: "delivered",
+  },
+  {
+    id: "dc2",
+    challanNumber: "DC-2026-0002",
+    invoiceId: "inv8",
+    customerId: "cu7",
+    items: [{ productId: "p10", quantity: 4, unitPrice: 14999, discountPercent: 3, gstPercent: 18 }],
+    createdDate: "2026-07-09",
+    deliveryDate: "2026-07-11",
+    deliveryAddress: "5 Jubilee Hills, Hyderabad, Telangana 500033",
+    vehicleNumber: "TS-09-CD-5678",
+    driverName: "Ravi Shankar",
+    status: "delivered",
+  },
+  {
+    id: "dc3",
+    challanNumber: "DC-2026-0003",
+    customerId: "cu3",
+    items: [{ productId: "p2", quantity: 2, unitPrice: 53990, discountPercent: 2, gstPercent: 18 }],
+    createdDate: "2026-07-13",
+    deliveryDate: "2026-07-15",
+    deliveryAddress: "Halcyon Warehouse, Ambattur Industrial Estate, Chennai 600058",
+    vehicleNumber: "TN-09-EF-9012",
+    status: "in-transit",
+  },
+];
+
+// ── Debit Notes ───────────────────────────────────────────────────
+
+export const debitNotes: DebitNote[] = [
+  {
+    id: "dn1",
+    debitNoteNumber: "DN-2026-0001",
+    invoiceId: "inv3",
+    customerId: "cu3",
+    amount: 5000,
+    reason: "Short delivery — 1 unit not shipped, billed at full quantity",
+    status: "issued",
+    createdDate: "2026-07-06",
+  },
+  {
+    id: "dn2",
+    debitNoteNumber: "DN-2026-0002",
+    invoiceId: "inv7",
+    customerId: "cu6",
+    amount: 2500,
+    reason: "Price revision — rate increased after PO confirmation",
+    status: "settled",
+    createdDate: "2026-06-22",
+  },
+];
+
 // ── Credit Notes ──────────────────────────────────────────────────
 
-export const creditNotes: CreditNote[] = [
+export const creditNotes = [
   {
     id: "cn1",
     creditNoteNumber: "CN-2026-0011",
@@ -521,7 +806,7 @@ export const creditNotes: CreditNote[] = [
     customerId: "cu2",
     amount: 1098,
     reason: "2 units returned — packaging damaged",
-    status: "adjusted",
+    status: "adjusted" as CreditNoteStatus,
     createdDate: "2026-07-13",
   },
   {
@@ -531,7 +816,7 @@ export const creditNotes: CreditNote[] = [
     customerId: "cu3",
     amount: 3990,
     reason: "Price correction after billing error",
-    status: "refunded",
+    status: "refunded" as CreditNoteStatus,
     createdDate: "2026-07-13",
   },
   {
@@ -541,7 +826,7 @@ export const creditNotes: CreditNote[] = [
     customerId: "cu4",
     amount: 10999,
     reason: "Product exchanged for different model",
-    status: "issued",
+    status: "issued" as CreditNoteStatus,
     createdDate: "2026-07-12",
   },
 ];
@@ -613,6 +898,7 @@ export const payments: PaymentTxn[] = [
     date: "2026-07-11",
     time: "2:40 PM",
     notes: "Paid in full via UPI",
+    transactionRef: "UPI-GS-20260711-001",
   },
   {
     id: "pay2",
@@ -625,6 +911,7 @@ export const payments: PaymentTxn[] = [
     date: "2026-07-10",
     time: "11:05 AM",
     notes: "Partial payment, balance pending",
+    transactionRef: "HDFC-TXN-20260710-4521",
   },
   {
     id: "pay3",
@@ -637,6 +924,7 @@ export const payments: PaymentTxn[] = [
     date: "2026-07-12",
     time: "4:15 PM",
     notes: "",
+    transactionRef: "POS-20260712-7812",
   },
   {
     id: "pay4",
@@ -644,11 +932,12 @@ export const payments: PaymentTxn[] = [
     invoiceId: "inv6",
     customerId: "cu3",
     amount: 8646,
-    mode: "bank-transfer",
+    mode: "neft",
     status: "received",
     date: "2026-07-12",
     time: "9:30 AM",
-    notes: "",
+    notes: "NEFT transfer from Halcyon Group HDFC account",
+    transactionRef: "NEFT-HG-20260712-0012",
   },
   {
     id: "pay5",
@@ -656,11 +945,12 @@ export const payments: PaymentTxn[] = [
     invoiceId: "inv8",
     customerId: "cu7",
     amount: 40000,
-    mode: "wallet",
+    mode: "rtgs",
     status: "received",
     date: "2026-07-08",
     time: "5:50 PM",
-    notes: "Partial payment",
+    notes: "Partial payment via RTGS",
+    transactionRef: "RTGS-KR-20260708-0089",
   },
   {
     id: "pay6",
@@ -709,12 +999,26 @@ export const payments: PaymentTxn[] = [
     date: "2026-07-13",
     time: "3:10 PM",
     notes: "Refund against CN-2026-0012",
+    transactionRef: "HDFC-REF-20260713-0023",
+  },
+  {
+    id: "pay10",
+    paymentNumber: "PMT-2026-1010",
+    invoiceId: "inv11",
+    customerId: "cu2",
+    amount: 5000,
+    mode: "cheque",
+    status: "pending",
+    date: "2026-07-13",
+    time: "11:00 AM",
+    notes: "Cheque #450231 received, awaiting clearance",
+    transactionRef: "CHQ-450231",
   },
 ];
 
 // ── Invoice Templates ─────────────────────────────────────────────
 
-export const invoiceTemplates: InvoiceTemplate[] = [
+export const invoiceTemplates = [
   {
     id: "tpl1",
     name: "Classic Blue",
@@ -743,6 +1047,21 @@ export const invoiceTemplates: InvoiceTemplate[] = [
     accentColor: "#d97706",
     isDefault: false,
   },
+];
+
+// ── Activity Feed ─────────────────────────────────────────────────
+
+export const activityEvents: ActivityEvent[] = [
+  { id: "ae1", type: "payment-received", title: "Payment received", subtitle: "PMT-2026-1009 · Refund to Halcyon Group", timestamp: "2026-07-13T15:10:00", invoiceId: "inv6", amount: 3990 },
+  { id: "ae2", type: "invoice-created", title: "Invoice created", subtitle: "INV-2026-0052 · Deshmukh Traders", timestamp: "2026-07-13T10:30:00", invoiceId: "inv10" },
+  { id: "ae3", type: "draft-saved", title: "Draft saved", subtitle: "INV-2026-0050 · Deshmukh Traders", timestamp: "2026-07-13T09:45:00", invoiceId: "inv10" },
+  { id: "ae4", type: "invoice-paid", title: "Invoice paid in full", subtitle: "INV-2026-0044 · Priya Traders", timestamp: "2026-07-12T16:15:00", invoiceId: "inv4", amount: 31853 },
+  { id: "ae5", type: "payment-received", title: "Payment received", subtitle: "PMT-2026-1004 · Halcyon Group via NEFT", timestamp: "2026-07-12T09:30:00", invoiceId: "inv6", amount: 8646 },
+  { id: "ae6", type: "invoice-printed", title: "Invoice printed", subtitle: "INV-2026-0041 · Gupta & Sons", timestamp: "2026-07-11T14:40:00", invoiceId: "inv1" },
+  { id: "ae7", type: "invoice-paid", title: "Invoice paid in full", subtitle: "INV-2026-0041 · Gupta & Sons", timestamp: "2026-07-11T14:30:00", invoiceId: "inv1", amount: 8121 },
+  { id: "ae8", type: "invoice-edited", title: "Invoice updated", subtitle: "INV-2026-0042 · Priya Traders", timestamp: "2026-07-10T11:05:00", invoiceId: "inv2" },
+  { id: "ae9", type: "quotation-sent", title: "Quotation sent", subtitle: "QUO-2026-0026 · Halcyon Group", timestamp: "2026-07-08T10:00:00" },
+  { id: "ae10", type: "credit-note-issued", title: "Credit note issued", subtitle: "CN-2026-0013 · Sundar Electronics", timestamp: "2026-07-12T08:00:00", amount: 10999 },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -815,6 +1134,10 @@ export function quotationTotal(quotation: Quotation) {
   return computeDocumentTotals(quotation.items, false).grandTotal;
 }
 
+export function proformaTotal(pi: ProformaInvoice) {
+  return computeDocumentTotals(pi.items, false).grandTotal;
+}
+
 export function nextInvoiceNumber() {
   const nums = invoices.map((i) => parseInt(i.invoiceNumber.split("-").pop() ?? "0", 10));
   const next = Math.max(0, ...nums) + 1;
@@ -827,11 +1150,56 @@ export function nextQuoteNumber() {
   return `QUO-2026-${String(next).padStart(4, "0")}`;
 }
 
+export function nextProformaNumber() {
+  const nums = proformaInvoices.map((p) => parseInt(p.proformaNumber.split("-").pop() ?? "0", 10));
+  const next = Math.max(0, ...nums) + 1;
+  return `PRO-2026-${String(next).padStart(4, "0")}`;
+}
+
+export function nextChallanNumber() {
+  const nums = deliveryChallans.map((d) => parseInt(d.challanNumber.split("-").pop() ?? "0", 10));
+  const next = Math.max(0, ...nums) + 1;
+  return `DC-2026-${String(next).padStart(4, "0")}`;
+}
+
+export function nextDebitNoteNumber() {
+  const nums = debitNotes.map((d) => parseInt(d.debitNoteNumber.split("-").pop() ?? "0", 10));
+  const next = Math.max(0, ...nums) + 1;
+  return `DN-2026-${String(next).padStart(4, "0")}`;
+}
+
 export const paymentModeLabels: Record<PaymentMode, string> = {
   cash: "Cash",
   upi: "UPI",
   card: "Card",
   "bank-transfer": "Bank Transfer",
+  neft: "NEFT",
+  rtgs: "RTGS",
   credit: "Credit",
   wallet: "Wallet",
+  cheque: "Cheque",
 };
+
+// ── Payment Terms presets ─────────────────────────────────────────
+
+export const paymentTermsPresets = [
+  { label: "Immediate (Due on receipt)", days: 0 },
+  { label: "Net 7 days", days: 7 },
+  { label: "Net 15 days", days: 15 },
+  { label: "Net 30 days", days: 30 },
+  { label: "Net 45 days", days: 45 },
+  { label: "Net 60 days", days: 60 },
+  { label: "Net 90 days", days: 90 },
+  { label: "Custom", days: -1 },
+];
+
+// ── Supported Currencies ──────────────────────────────────────────
+
+export const currencies = [
+  { code: "INR", symbol: "₹", name: "Indian Rupee" },
+  { code: "USD", symbol: "$", name: "US Dollar" },
+  { code: "EUR", symbol: "€", name: "Euro" },
+  { code: "GBP", symbol: "£", name: "British Pound" },
+  { code: "AED", symbol: "د.إ", name: "UAE Dirham" },
+  { code: "SGD", symbol: "S$", name: "Singapore Dollar" },
+];

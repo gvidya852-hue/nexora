@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   LayoutGrid,
   FileText,
@@ -9,6 +9,9 @@ import {
   Wallet,
   Palette,
   Settings,
+  BarChart2,
+  FolderOpen,
+  Keyboard,
 } from "lucide-react";
 
 import { OverviewTab } from "../../../components/billing/tabs/OverviewTab";
@@ -19,6 +22,8 @@ import { RecurringTab } from "../../../components/billing/tabs/RecurringTab";
 import { PaymentsTab } from "../../../components/billing/tabs/PaymentsTab";
 import { TemplatesTab } from "../../../components/billing/tabs/TemplatesTab";
 import { SettingsTab } from "../../../components/billing/tabs/SettingsTab";
+import { ReportsTab } from "../../../components/billing/tabs/ReportsTab";
+import { DocumentsTab } from "../../../components/billing/tabs/DocumentsTab";
 
 export const Route = createFileRoute("/_authenticated/_app/billing")({
   component: BillingPage,
@@ -33,6 +38,8 @@ type TabId =
   | "credit-notes"
   | "recurring"
   | "payments"
+  | "reports"
+  | "documents"
   | "templates"
   | "settings";
 
@@ -49,12 +56,51 @@ const navItems: BillingNavItem[] = [
   { id: "credit-notes", label: "Credit Notes", icon: Undo2 },
   { id: "recurring", label: "Recurring", icon: Repeat },
   { id: "payments", label: "Payments", icon: Wallet },
+  { id: "reports", label: "Reports", icon: BarChart2 },
+  { id: "documents", label: "Documents", icon: FolderOpen },
   { id: "templates", label: "Templates", icon: Palette },
   { id: "settings", label: "Settings", icon: Settings },
 ];
 
 function BillingPage() {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
+  const [ctrlHeld, setCtrlHeld] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Control" || e.key === "Meta") {
+        setCtrlHeld(true);
+      }
+      // Ctrl+N → new invoice
+      if ((e.ctrlKey || e.metaKey) && e.key === "n") {
+        e.preventDefault();
+        setActiveTab("invoices");
+      }
+      // Ctrl+S → save draft (navigate to invoices)
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
+        setActiveTab("invoices");
+      }
+      // Ctrl+P → print (navigate to templates)
+      if ((e.ctrlKey || e.metaKey) && e.key === "p") {
+        e.preventDefault();
+        setActiveTab("templates");
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Control" || e.key === "Meta") {
+        setCtrlHeld(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, []);
 
   return (
     <div className="min-h-full px-4 py-6 sm:px-6 lg:px-8">
@@ -67,6 +113,15 @@ function BillingPage() {
               Invoices, quotations, credit notes, and payments — GST-ready and built for Indian
               businesses.
             </p>
+          </div>
+          {/* Keyboard shortcuts indicator */}
+          <div
+            className={`inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-500 transition-all duration-200 ${
+              ctrlHeld ? "opacity-100 scale-100 shadow-sm border-blue-200 bg-blue-50 text-blue-600" : "opacity-40"
+            }`}
+          >
+            <Keyboard className="h-3.5 w-3.5" />
+            <span>Ctrl+N New Invoice · Ctrl+S Draft · Ctrl+P Print</span>
           </div>
         </div>
 
@@ -104,6 +159,8 @@ function BillingPage() {
           {activeTab === "credit-notes" && <CreditNotesTab />}
           {activeTab === "recurring" && <RecurringTab />}
           {activeTab === "payments" && <PaymentsTab />}
+          {activeTab === "reports" && <ReportsTab />}
+          {activeTab === "documents" && <DocumentsTab />}
           {activeTab === "templates" && <TemplatesTab />}
           {activeTab === "settings" && <SettingsTab />}
         </div>

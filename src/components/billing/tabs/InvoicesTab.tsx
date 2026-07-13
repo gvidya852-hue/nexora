@@ -1,5 +1,5 @@
 // ── Invoices Tab ──────────────────────────────────────────────────
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   FileText,
@@ -14,6 +14,11 @@ import {
   CheckCircle2,
   Clock,
   AlertTriangle,
+  Filter,
+  Columns,
+  BookMarked,
+  Mail,
+  SlidersHorizontal,
 } from "lucide-react";
 import {
   invoices as seedInvoices,
@@ -43,6 +48,32 @@ import { InvoiceDetailView } from "@/components/billing/tabs/InvoiceDetailView";
 
 // ── Constants ─────────────────────────────────────────────────────
 const PAGE_SIZE = 10;
+
+const SALESPERSON_OPTIONS = [
+  "All Salespersons",
+  "Arjun Mehta",
+  "Divya Krishnan",
+  "Rohan Verma",
+  "Sneha Patel",
+];
+
+const OPTIONAL_COLUMNS = ["GSTIN", "Tax", "Due Date", "Payment Mode", "Salesperson"] as const;
+type OptionalColumn = (typeof OPTIONAL_COLUMNS)[number];
+
+// ── Saved Views ────────────────────────────────────────────────────
+interface SavedView {
+  name: string;
+  filterStatus?: string;
+  filterPayment?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+const SAVED_VIEWS: SavedView[] = [
+  { name: "All Invoices" },
+  { name: "Overdue & Pending", filterStatus: "overdue" },
+  { name: "This Month", dateFrom: "2026-07-01" },
+];
 
 // ── Helpers ───────────────────────────────────────────────────────
 function nextInvoiceNumberLocal(invs: Invoice[]): string {
@@ -103,6 +134,21 @@ function downloadFile(content: string, filename: string, mime: string) {
   URL.revokeObjectURL(url);
 }
 
+// ── Popover hook ──────────────────────────────────────────────────
+function usePopover() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+  return { open, setOpen, ref };
+}
+
 // ── InvoicesTab ───────────────────────────────────────────────────
 export function InvoicesTab() {
   // ── State ──────────────────────────────────────────────────────
@@ -120,8 +166,28 @@ export function InvoicesTab() {
   const [sortKey, setSortKey] = useState("date-desc");
   const [page, setPage] = useState(1);
 
+  // Advanced filters
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [advDateFrom, setAdvDateFrom] = useState("");
+  const [advDateTo, setAdvDateTo] = useState("");
+  const [advAmountMin, setAdvAmountMin] = useState("");
+  const [advAmountMax, setAdvAmountMax] = useState("");
+  const [advSalesperson, setAdvSalesperson] = useState("All Salespersons");
+
+  // Column visibility
+  const [visibleColumns, setVisibleColumns] = useState<Set<OptionalColumn>>(
+    new Set(OPTIONAL_COLUMNS),
+  );
+
+  // Saved views
+  const [activeViewName, setActiveViewName] = useState("All Invoices");
+
   // Selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Popovers
+  const columnsPopover = usePopover();
+  const viewsPopover = usePopover();
 
   // ── Derived stats ──────────────────────────────────────────────
   const totalCount = localInvoices.length;
@@ -141,26 +207,75 @@ export function InvoicesTab() {
     .filter((i) => i.status === "overdue")
     .reduce((s, i) => s + invoiceGrandTotal(i), 0);
 
+  // ── Advanced filter active count ───────────────────────────────
+  const advFilterCount = [
+    advDateFrom !== "",
+    advDateTo !== "",
+    advAmountMin !== "",
+    advAmountMax !== "",
+    advSalesperson !== "All Salespersons",
+  ].filter(Boolean).length;
+
   // ── Filtered / sorted / paginated ─────────────────────────────
   const filtered = useMemo(() => {
     let rows = localInvoices;
-    const q = search.toLowerCase();
+
+    // Enhanced search: invoice number, customer name, GSTIN, amount, salesperson, referenceNumber
+    const q = search.toLowerCase().trim();
     if (q) {
+      const qNum = parseFloat(q.replace(/,/g, ""));
       rows = rows.filter((inv) => {
         const cust = getCustomer(inv.customerId);
+        const totals = computeDocumentTotals(inv.items, inv.isInterState);
+        const grandTotal = Math.round(totals.grandTotal);
         return (
           inv.invoiceNumber.toLowerCase().includes(q) ||
           (cust?.name ?? "").toLowerCase().includes(q) ||
-          (cust?.gstin ?? "").toLowerCase().includes(q)
+          (cust?.gstin ?? "").toLowerCase().includes(q) ||
+          (inv.salesperson ?? "").toLowerCase().includes(q) ||
+          (inv.referenceNumber ?? "").toLowerCase().includes(q) ||
+          (!isNaN(qNum) && Math.round(qNum) === grandTotal)
         );
       });
     }
+
+    // Status filter
     if (filterStatus !== "all") {
       rows = rows.filter((inv) => inv.status === filterStatus);
     }
+
+    // Payment filter
     if (filterPayment !== "all") {
       rows = rows.filter((inv) => inv.paymentStatus === filterPayment);
     }
+
+    // Advanced: date range
+    if (advDateFrom) {
+      rows = rows.filter((inv) => inv.createdDate >= advDateFrom);
+    }
+    if (advDateTo) {
+      rows = rows.filter((inv) => inv.createdDate <= advDateTo);
+    }
+
+    // Advanced: amount range
+    if (advAmountMin !== "") {
+      const min = parseFloat(advAmountMin);
+      if (!isNaN(min)) {
+        rows = rows.filter((inv) => invoiceGrandTotal(inv) >= min);
+      }
+    }
+    if (advAmountMax !== "") {
+      const max = parseFloat(advAmountMax);
+      if (!isNaN(max)) {
+        rows = rows.filter((inv) => invoiceGrandTotal(inv) <= max);
+      }
+    }
+
+    // Advanced: salesperson
+    if (advSalesperson !== "All Salespersons") {
+      rows = rows.filter((inv) => inv.salesperson === advSalesperson);
+    }
+
     rows = [...rows].sort((a, b) => {
       if (sortKey === "date-desc")
         return new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime();
@@ -171,7 +286,18 @@ export function InvoicesTab() {
       return 0;
     });
     return rows;
-  }, [localInvoices, search, filterStatus, filterPayment, sortKey]);
+  }, [
+    localInvoices,
+    search,
+    filterStatus,
+    filterPayment,
+    sortKey,
+    advDateFrom,
+    advDateTo,
+    advAmountMin,
+    advAmountMax,
+    advSalesperson,
+  ]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -188,6 +314,34 @@ export function InvoicesTab() {
   function handlePaymentFilter(v: string) {
     setFilterPayment(v);
     setPage(1);
+  }
+
+  // ── Saved view apply ───────────────────────────────────────────
+  function applyView(sv: SavedView) {
+    setActiveViewName(sv.name);
+    setFilterStatus(sv.filterStatus ?? "all");
+    setFilterPayment(sv.filterPayment ?? "all");
+    setAdvDateFrom(sv.dateFrom ?? "");
+    setAdvDateTo(sv.dateTo ?? "");
+    setAdvAmountMin("");
+    setAdvAmountMax("");
+    setAdvSalesperson("All Salespersons");
+    setPage(1);
+    viewsPopover.setOpen(false);
+  }
+
+  // ── Column toggle ──────────────────────────────────────────────
+  function toggleColumn(col: OptionalColumn) {
+    setVisibleColumns((prev) => {
+      const next = new Set(prev);
+      if (next.has(col)) next.delete(col);
+      else next.add(col);
+      return next;
+    });
+  }
+
+  function colVisible(col: OptionalColumn) {
+    return visibleColumns.has(col);
   }
 
   // ── Selection ──────────────────────────────────────────────────
@@ -261,6 +415,28 @@ export function InvoicesTab() {
 
   function handleBulkPrint() {
     window.print();
+  }
+
+  function handleBulkEmail() {
+    alert(
+      `Bulk email would be sent to ${selectedIds.size} customer(s). Email integration required.`,
+    );
+  }
+
+  function handleBulkMarkPaid() {
+    setLocalInvoices((prev) =>
+      prev.map((inv) => {
+        if (!selectedIds.has(inv.id)) return inv;
+        const totals = computeDocumentTotals(inv.items, inv.isInterState);
+        return {
+          ...inv,
+          status: "paid" as InvoiceStatus,
+          paymentStatus: "paid" as PaymentStatus,
+          amountPaid: totals.grandTotal,
+        };
+      }),
+    );
+    setSelectedIds(new Set());
   }
 
   // ── Builder save ───────────────────────────────────────────────
@@ -355,6 +531,16 @@ export function InvoicesTab() {
     { value: "amount-asc", label: "Amount Low–High" },
   ];
 
+  // Build table headers dynamically
+  const mandatoryHeaders = ["Invoice No.", "Customer"];
+  const optionalHeaderMap: Record<OptionalColumn, string> = {
+    GSTIN: "GSTIN",
+    Tax: "Tax",
+    "Due Date": "Due Date",
+    "Payment Mode": "Payment Mode",
+    Salesperson: "Salesperson",
+  };
+
   return (
     <div className="space-y-5">
       {/* ── Stat strip ── */}
@@ -429,6 +615,105 @@ export function InvoicesTab() {
             className="w-36"
           />
           <Select value={sortKey} onChange={setSortKey} options={sortOptions} className="w-40" />
+
+          {/* ── Filters button ── */}
+          <button
+            onClick={() => setShowAdvancedFilters((v) => !v)}
+            className={`relative inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+              showAdvancedFilters || advFilterCount > 0
+                ? "border-blue-300 bg-blue-50 text-blue-700"
+                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Filters
+            {advFilterCount > 0 && (
+              <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
+                {advFilterCount}
+              </span>
+            )}
+          </button>
+
+          {/* ── Columns button ── */}
+          <div className="relative" ref={columnsPopover.ref}>
+            <button
+              onClick={() => columnsPopover.setOpen((v) => !v)}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                columnsPopover.open
+                  ? "border-blue-300 bg-blue-50 text-blue-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              <Columns className="h-3.5 w-3.5" />
+              Columns
+            </button>
+            {columnsPopover.open && (
+              <div className="absolute left-0 top-full z-20 mt-1 w-44 rounded-xl border border-slate-200 bg-white py-2 shadow-lg">
+                <p className="px-3 pb-1.5 pt-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  Optional Columns
+                </p>
+                {OPTIONAL_COLUMNS.map((col) => (
+                  <label
+                    key={col}
+                    className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={visibleColumns.has(col)}
+                      onChange={() => toggleColumn(col)}
+                      className="h-3.5 w-3.5 rounded border-slate-300"
+                    />
+                    {col}
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* ── Views button ── */}
+          <div className="relative" ref={viewsPopover.ref}>
+            <button
+              onClick={() => viewsPopover.setOpen((v) => !v)}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                viewsPopover.open
+                  ? "border-blue-300 bg-blue-50 text-blue-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              <BookMarked className="h-3.5 w-3.5" />
+              <span>{activeViewName}</span>
+            </button>
+            {viewsPopover.open && (
+              <div className="absolute left-0 top-full z-20 mt-1 w-48 rounded-xl border border-slate-200 bg-white py-2 shadow-lg">
+                <p className="px-3 pb-1.5 pt-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                  Saved Views
+                </p>
+                {SAVED_VIEWS.map((sv) => (
+                  <button
+                    key={sv.name}
+                    onClick={() => applyView(sv)}
+                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-slate-50 ${
+                      activeViewName === sv.name
+                        ? "font-semibold text-blue-700"
+                        : "text-slate-700"
+                    }`}
+                  >
+                    {sv.name === "Overdue & Pending" && (
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                    )}
+                    {sv.name !== "Overdue & Pending" && (
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-300" />
+                    )}
+                    {sv.name}
+                    {activeViewName === sv.name && (
+                      <span className="ml-auto text-[10px] text-blue-500">✓</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="ml-auto flex items-center gap-2">
             <SecondaryButton icon={Download} onClick={handleExportCSV}>
               Export CSV
@@ -439,12 +724,113 @@ export function InvoicesTab() {
           </div>
         </div>
 
+        {/* ── Advanced Filters Row ── */}
+        {showAdvancedFilters && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="border-b border-slate-100 bg-slate-50/60 px-6 py-3"
+          >
+            <div className="flex flex-wrap items-end gap-4">
+              {/* Date Range */}
+              <div className="flex items-end gap-2">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                    From
+                  </label>
+                  <input
+                    type="date"
+                    value={advDateFrom}
+                    onChange={(e) => { setAdvDateFrom(e.target.value); setPage(1); }}
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                    To
+                  </label>
+                  <input
+                    type="date"
+                    value={advDateTo}
+                    onChange={(e) => { setAdvDateTo(e.target.value); setPage(1); }}
+                    className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                  />
+                </div>
+              </div>
+
+              {/* Amount Range */}
+              <div className="flex items-end gap-2">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                    Min ₹
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={advAmountMin}
+                    onChange={(e) => { setAdvAmountMin(e.target.value); setPage(1); }}
+                    className="w-28 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                    Max ₹
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="∞"
+                    value={advAmountMax}
+                    onChange={(e) => { setAdvAmountMax(e.target.value); setPage(1); }}
+                    className="w-28 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                  />
+                </div>
+              </div>
+
+              {/* Salesperson */}
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                  Salesperson
+                </label>
+                <select
+                  value={advSalesperson}
+                  onChange={(e) => { setAdvSalesperson(e.target.value); setPage(1); }}
+                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                >
+                  {SALESPERSON_OPTIONS.map((sp) => (
+                    <option key={sp} value={sp}>
+                      {sp}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Clear advanced filters */}
+              {advFilterCount > 0 && (
+                <button
+                  onClick={() => {
+                    setAdvDateFrom("");
+                    setAdvDateTo("");
+                    setAdvAmountMin("");
+                    setAdvAmountMax("");
+                    setAdvSalesperson("All Salespersons");
+                    setPage(1);
+                  }}
+                  className="self-end rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors"
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
+
         {/* Bulk action bar */}
         {someSelected && (
           <motion.div
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-3 border-b border-amber-100 bg-amber-50 px-6 py-2"
+            className="flex flex-wrap items-center gap-3 border-b border-amber-100 bg-amber-50 px-6 py-2"
           >
             <span className="text-xs font-semibold text-amber-700">
               {selectedIds.size} selected
@@ -466,6 +852,20 @@ export function InvoicesTab() {
               className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-50 transition-colors"
             >
               <Printer className="h-3.5 w-3.5" /> Print
+            </button>
+            {/* ── Bulk Email ── */}
+            <button
+              onClick={handleBulkEmail}
+              className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-50 transition-colors"
+            >
+              <Mail className="h-3.5 w-3.5" /> Send Email
+            </button>
+            {/* ── Bulk Mark Paid ── */}
+            <button
+              onClick={handleBulkMarkPaid}
+              className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 transition-colors"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" /> Mark Paid
             </button>
             <button
               onClick={handleBulkDelete}
@@ -498,25 +898,64 @@ export function InvoicesTab() {
                     <th className="w-10 pl-6 py-3">
                       <Checkbox checked={allPageSelected} onChange={toggleAll} />
                     </th>
-                    {[
-                      "Invoice No.",
-                      "Customer",
-                      "GSTIN",
-                      "Status",
-                      "Amount",
-                      "Tax",
-                      "Created",
-                      "Due Date",
-                      "Payment",
-                      "Actions",
-                    ].map((h) => (
-                      <th
-                        key={h}
-                        className="px-3 py-3 text-left text-xs font-semibold text-slate-500 whitespace-nowrap"
-                      >
-                        {h}
+                    {/* Mandatory: Invoice No. */}
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 whitespace-nowrap">
+                      Invoice No.
+                    </th>
+                    {/* Mandatory: Customer */}
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 whitespace-nowrap">
+                      Customer
+                    </th>
+                    {/* Optional: GSTIN */}
+                    {colVisible("GSTIN") && (
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 whitespace-nowrap">
+                        GSTIN
                       </th>
-                    ))}
+                    )}
+                    {/* Mandatory: Status */}
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 whitespace-nowrap">
+                      Status
+                    </th>
+                    {/* Mandatory: Amount */}
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 whitespace-nowrap">
+                      Amount
+                    </th>
+                    {/* Optional: Tax */}
+                    {colVisible("Tax") && (
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 whitespace-nowrap">
+                        Tax
+                      </th>
+                    )}
+                    {/* Mandatory: Created */}
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 whitespace-nowrap">
+                      Created
+                    </th>
+                    {/* Optional: Due Date */}
+                    {colVisible("Due Date") && (
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 whitespace-nowrap">
+                        Due Date
+                      </th>
+                    )}
+                    {/* Optional: Payment Mode */}
+                    {colVisible("Payment Mode") && (
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 whitespace-nowrap">
+                        Payment Mode
+                      </th>
+                    )}
+                    {/* Mandatory: Payment (status) */}
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 whitespace-nowrap">
+                      Payment
+                    </th>
+                    {/* Optional: Salesperson */}
+                    {colVisible("Salesperson") && (
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 whitespace-nowrap">
+                        Salesperson
+                      </th>
+                    )}
+                    {/* Mandatory: Actions */}
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 whitespace-nowrap">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -542,11 +981,13 @@ export function InvoicesTab() {
                         <td className="pl-6 py-3" data-no-row-click>
                           <Checkbox checked={isSelected} onChange={() => toggleSelect(inv.id)} />
                         </td>
+                        {/* Invoice No. */}
                         <td className="px-3 py-3">
                           <span className="font-mono text-xs font-semibold text-blue-700">
                             {inv.invoiceNumber}
                           </span>
                         </td>
+                        {/* Customer */}
                         <td className="px-3 py-3">
                           <div>
                             <p className="text-sm font-semibold text-foreground">
@@ -557,27 +998,59 @@ export function InvoicesTab() {
                             </p>
                           </div>
                         </td>
-                        <td className="px-3 py-3 text-xs font-mono text-slate-500">
-                          {cust?.gstin ?? "—"}
-                        </td>
+                        {/* Optional: GSTIN */}
+                        {colVisible("GSTIN") && (
+                          <td className="px-3 py-3 text-xs font-mono text-slate-500">
+                            {cust?.gstin ?? "—"}
+                          </td>
+                        )}
+                        {/* Status */}
                         <td className="px-3 py-3">
                           <BillingStatusPill status={inv.status} />
                         </td>
+                        {/* Amount */}
                         <td className="px-3 py-3 text-right font-semibold text-slate-800 whitespace-nowrap">
                           {fmtINR(totals.grandTotal)}
                         </td>
-                        <td className="px-3 py-3 text-right text-xs text-slate-600 whitespace-nowrap">
-                          {fmtINR(tax)}
-                        </td>
+                        {/* Optional: Tax */}
+                        {colVisible("Tax") && (
+                          <td className="px-3 py-3 text-right text-xs text-slate-600 whitespace-nowrap">
+                            {fmtINR(tax)}
+                          </td>
+                        )}
+                        {/* Created */}
                         <td className="px-3 py-3 text-xs text-slate-600 whitespace-nowrap">
                           {fmtDate(inv.createdDate)}
                         </td>
-                        <td className="px-3 py-3 text-xs text-slate-600 whitespace-nowrap">
-                          {fmtDate(inv.dueDate)}
-                        </td>
+                        {/* Optional: Due Date */}
+                        {colVisible("Due Date") && (
+                          <td className="px-3 py-3 text-xs text-slate-600 whitespace-nowrap">
+                            {fmtDate(inv.dueDate)}
+                          </td>
+                        )}
+                        {/* Optional: Payment Mode */}
+                        {colVisible("Payment Mode") && (
+                          <td className="px-3 py-3 text-xs text-slate-600 whitespace-nowrap capitalize">
+                            {inv.paymentMode.replace(/-/g, " ")}
+                          </td>
+                        )}
+                        {/* Payment status */}
                         <td className="px-3 py-3">
                           <BillingStatusPill status={inv.paymentStatus} />
                         </td>
+                        {/* Optional: Salesperson */}
+                        {colVisible("Salesperson") && (
+                          <td className="px-3 py-3">
+                            {inv.salesperson ? (
+                              <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                                {inv.salesperson}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-slate-400">—</span>
+                            )}
+                          </td>
+                        )}
+                        {/* Actions */}
                         <td className="px-3 py-3" data-no-row-click>
                           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button

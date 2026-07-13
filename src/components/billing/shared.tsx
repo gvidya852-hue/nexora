@@ -12,6 +12,9 @@ import {
   Landmark,
   Clock3,
   Wallet as WalletIcon,
+  ArrowRightLeft,
+  Zap,
+  FileCheck,
 } from "lucide-react";
 import type { PaymentMode } from "@/lib/billing-data";
 
@@ -64,8 +67,11 @@ const paymentModeIcons: Record<PaymentMode, React.ElementType> = {
   upi: Smartphone,
   card: CreditCard,
   "bank-transfer": Landmark,
+  neft: ArrowRightLeft,
+  rtgs: Zap,
   credit: Clock3,
   wallet: WalletIcon,
+  cheque: FileCheck,
 };
 
 export function PaymentModeBadge({ mode }: { mode: PaymentMode }) {

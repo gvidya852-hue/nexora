@@ -1,5 +1,5 @@
 // ── Invoice Builder ───────────────────────────────────────────────
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Plus,
@@ -15,6 +15,15 @@ import {
   User,
   ChevronDown,
   X,
+  Paperclip,
+  PenLine,
+  Sparkles,
+  Percent,
+  Shield,
+  Package,
+  Mail,
+  MessageCircle,
+  Clock,
 } from "lucide-react";
 import {
   customers,
@@ -25,6 +34,9 @@ import {
   nextInvoiceNumber,
   fmtINR,
   fmtDate,
+  currencies,
+  salespersons,
+  paymentTermsPresets,
   type Invoice,
   type InvoiceItem,
   type InvoiceStatus,
@@ -106,6 +118,13 @@ function lineToInvoiceItem(li: BuilderLineItem): InvoiceItem {
   };
 }
 
+/** Add N days to a YYYY-MM-DD string, return YYYY-MM-DD */
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split("T")[0];
+}
+
 const inputCls =
   "h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition-colors focus:border-[color:var(--brand-electric)] focus:ring-1 focus:ring-[color:var(--brand-electric)] placeholder:text-slate-400";
 const labelCls = "mb-1 block text-xs font-medium text-slate-600";
@@ -184,10 +203,20 @@ export function InvoiceBuilder({
   const [invoiceNumber] = useState(
     mode === "edit" && invoice ? invoice.invoiceNumber : nextInvoiceNumber(),
   );
+  const [invoicePrefix, setInvoicePrefix] = useState("INV");
   const [createdDate, setCreatedDate] = useState(invoice?.createdDate ?? TODAY);
   const [dueDate, setDueDate] = useState(invoice?.dueDate ?? "2026-07-23");
   const [placeOfSupply, setPlaceOfSupply] = useState(invoice?.placeOfSupply ?? "Karnataka");
   const [isInterState, setIsInterState] = useState(invoice?.isInterState ?? false);
+
+  // ── Enterprise invoice detail fields ────────────────────────────
+  const [paymentTerms, setPaymentTerms] = useState("Net 10 days");
+  const [selectedCurrency, setSelectedCurrency] = useState(invoice?.currency ?? "INR");
+  const [exchangeRate, setExchangeRate] = useState(invoice?.exchangeRate ?? 1);
+  const [salesperson, setSalesperson] = useState(invoice?.salesperson ?? "");
+  const [referenceNumber, setReferenceNumber] = useState(invoice?.referenceNumber ?? "");
+  const [poNumber, setPoNumber] = useState(invoice?.poNumber ?? "");
+  const [deliveryDate, setDeliveryDate] = useState(invoice?.deliveryDate ?? "");
 
   // ── Line items ───────────────────────────────────────────────────
   const [lineItems, setLineItems] = useState<BuilderLineItem[]>(() => {
@@ -227,14 +256,46 @@ export function InvoiceBuilder({
     invoice?.terms ??
       "Payment is due within 10 days from the invoice date. Late payments are subject to a 1.5% monthly interest charge. Goods once sold will not be taken back without prior approval. All disputes are subject to Bengaluru jurisdiction.",
   );
+  const [internalNotes, setInternalNotes] = useState(invoice?.internalNotes ?? "");
 
   // ── Preview / UI state ───────────────────────────────────────────
   const [showPreview, setShowPreview] = useState(false);
+  const [previewMode, setPreviewMode] = useState<"a4" | "email" | "whatsapp">("a4");
   const [barcodeToast, setBarcodeToast] = useState(false);
 
   // ── Derived ──────────────────────────────────────────────────────
   const selectedCustomer: Customer | undefined =
     customerMode === "existing" ? customers.find((c) => c.id === selectedCustomerId) : undefined;
+
+  // ── Address state (derived from selectedCustomer, editable) ──────
+  const [billingAddress, setBillingAddress] = useState(
+    invoice?.billingAddress ?? selectedCustomer?.address ?? "",
+  );
+  const [shippingAddress, setShippingAddress] = useState(
+    selectedCustomer?.shippingAddress ?? "",
+  );
+  const [deliveryAddress, setDeliveryAddress] = useState(
+    invoice?.deliveryAddress ?? selectedCustomer?.shippingAddress ?? "",
+  );
+  const [sameAsShipping, setSameAsShipping] = useState(true);
+
+  // Keep addresses in sync when customer changes
+  useEffect(() => {
+    if (selectedCustomer) {
+      setBillingAddress(selectedCustomer.address);
+      setShippingAddress(selectedCustomer.shippingAddress);
+      if (sameAsShipping) {
+        setDeliveryAddress(selectedCustomer.shippingAddress);
+      }
+    }
+  }, [selectedCustomerId]);
+
+  // Sync delivery address when sameAsShipping toggled
+  useEffect(() => {
+    if (sameAsShipping) {
+      setDeliveryAddress(shippingAddress);
+    }
+  }, [sameAsShipping, shippingAddress]);
 
   const filteredCustomers = useMemo(() => {
     const q = customerSearch.toLowerCase();
@@ -301,6 +362,15 @@ export function InvoiceBuilder({
     setTimeout(() => setBarcodeToast(false), 2500);
   }
 
+  // ── Payment Terms auto-due-date ──────────────────────────────────
+  function handlePaymentTermsChange(label: string) {
+    setPaymentTerms(label);
+    const preset = paymentTermsPresets.find((p) => p.label === label);
+    if (preset && preset.days >= 0) {
+      setDueDate(addDays(createdDate, preset.days));
+    }
+  }
+
   // ── Build Invoice ────────────────────────────────────────────────
   function buildInvoice(): Invoice {
     const id = mode === "edit" && invoice ? invoice.id : "inv-" + Date.now();
@@ -317,14 +387,38 @@ export function InvoiceBuilder({
       dueDate,
       amountPaid,
       notes,
+      internalNotes,
       terms,
       placeOfSupply,
       isInterState,
+      salesperson,
+      referenceNumber,
+      poNumber,
+      deliveryDate,
+      deliveryAddress,
+      billingAddress,
+      currency: selectedCurrency,
+      exchangeRate,
     };
   }
 
   function handleSaveDraft() {
     onSave({ ...buildInvoice(), status: "draft" });
+  }
+
+  function handleSaveAndNew() {
+    onSave({ ...buildInvoice(), status: "draft" });
+    // Reset to blank form by cancelling (parent should open a fresh create flow)
+    onCancel();
+  }
+
+  function handleSaveAndContinue() {
+    onSave(buildInvoice());
+    // stays open — no navigation
+  }
+
+  function handleSaveAndSend() {
+    onSave({ ...buildInvoice(), status: "sent" });
   }
 
   function handleSaveInvoice() {
@@ -350,10 +444,196 @@ export function InvoiceBuilder({
     const custAddress =
       customerMode === "existing" ? (selectedCustomer?.address ?? "—") : newCustomer.address || "—";
 
+    // ── A4 Invoice block (reused across modes) ────────────────────
+    const A4Block = (
+      <div className="mx-auto w-full max-w-3xl rounded-2xl border border-slate-200 bg-white shadow-sm print:shadow-none">
+        {/* Header band */}
+        <div className="rounded-t-2xl bg-[image:var(--gradient-brand)] px-8 py-6 text-white">
+          <div className="flex items-start justify-between">
+            <div>
+              <h1 className="text-2xl font-bold">{company.name}</h1>
+              <p className="mt-1 text-sm opacity-80">{company.address}</p>
+              <p className="text-sm opacity-80">
+                {company.phone} · {company.email}
+              </p>
+              <p className="mt-1 text-xs font-semibold opacity-70">GSTIN: {company.gstin}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-3xl font-black tracking-tight">INVOICE</p>
+              <p className="mt-1 font-mono text-sm opacity-90">{invoiceNumber}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-8 py-6 space-y-6">
+          {/* Bill To + Dates */}
+          <div className="grid grid-cols-2 gap-6">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
+                Bill To
+              </p>
+              <p className="font-bold text-slate-800">{custName}</p>
+              {custGstin !== "—" && <p className="text-xs text-slate-500">GSTIN: {custGstin}</p>}
+              <p className="text-sm text-slate-600 mt-1">{custAddress}</p>
+            </div>
+            <div className="text-right">
+              <div className="space-y-1">
+                <div>
+                  <span className="text-xs text-slate-400">Invoice Date: </span>
+                  <span className="text-sm font-semibold text-slate-700">
+                    {fmtDate(createdDate)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs text-slate-400">Due Date: </span>
+                  <span className="text-sm font-semibold text-slate-700">{fmtDate(dueDate)}</span>
+                </div>
+                <div>
+                  <span className="text-xs text-slate-400">Place of Supply: </span>
+                  <span className="text-sm font-semibold text-slate-700">{placeOfSupply}</span>
+                </div>
+                <div>
+                  <span className="text-xs text-slate-400">Supply Type: </span>
+                  <span className="text-sm font-semibold text-slate-700">
+                    {isInterState ? "Inter-State" : "Intra-State"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Items table */}
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  {["#", "Item & HSN", "Qty", "Unit Price", "Disc%", "GST%", "Total"].map((h) => (
+                    <th
+                      key={h}
+                      className="px-3 py-2 text-left text-[11px] font-semibold text-slate-500"
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {lineItems.map((li, i) => {
+                  const computed = computeLineItem(lineToInvoiceItem(li));
+                  return (
+                    <tr key={li.id} className="border-b border-slate-100">
+                      <td className="px-3 py-2 text-slate-400 text-xs">{i + 1}</td>
+                      <td className="px-3 py-2">
+                        <p className="font-medium text-slate-800">{li.productName}</p>
+                        <p className="text-[11px] text-slate-400">HSN: {li.hsnCode}</p>
+                      </td>
+                      <td className="px-3 py-2 text-slate-700">{li.quantity}</td>
+                      <td className="px-3 py-2 text-slate-700">{fmtINR(li.unitPrice)}</td>
+                      <td className="px-3 py-2 text-slate-700">{li.discountPercent}%</td>
+                      <td className="px-3 py-2 text-slate-700">{li.gstPercent}%</td>
+                      <td className="px-3 py-2 font-semibold text-slate-800">
+                        {fmtINR(computed.total)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Totals */}
+          <div className="flex justify-end">
+            <div className="w-72 space-y-1.5">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Subtotal</span>
+                <span className="font-medium text-slate-700">{fmtINR(totals.subtotal)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Discount</span>
+                <span className="font-medium text-red-600">-{fmtINR(totals.totalDiscount)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Taxable Value</span>
+                <span className="font-medium text-slate-700">{fmtINR(totals.taxableValue)}</span>
+              </div>
+              {isInterState ? (
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">IGST</span>
+                  <span className="font-medium text-slate-700">{fmtINR(totals.igst)}</span>
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">CGST</span>
+                    <span className="font-medium text-slate-700">{fmtINR(totals.cgst)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">SGST</span>
+                    <span className="font-medium text-slate-700">{fmtINR(totals.sgst)}</span>
+                  </div>
+                </>
+              )}
+              {totals.roundOff !== 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Round Off</span>
+                  <span className="font-medium text-slate-700">
+                    {totals.roundOff > 0 ? "+" : ""}
+                    {fmtINR(totals.roundOff)}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-bold">
+                <span className="text-slate-800">Grand Total</span>
+                <span className="text-foreground">{fmtINR(totals.grandTotal)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Amount Paid</span>
+                <span className="font-medium text-emerald-600">{fmtINR(amountPaid)}</span>
+              </div>
+              <div className="flex justify-between text-sm font-semibold">
+                <span className="text-slate-700">Balance Due</span>
+                <span className={balance > 0 ? "text-red-600" : "text-emerald-600"}>
+                  {fmtINR(balance)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Bank details */}
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
+              Bank Details
+            </p>
+            <p className="text-slate-700">
+              {company.bankName} · A/C: {company.accountNumber} · IFSC: {company.ifsc}
+            </p>
+          </div>
+
+          {/* Notes + Terms */}
+          {notes && (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
+                Notes
+              </p>
+              <p className="text-sm text-slate-600">{notes}</p>
+            </div>
+          )}
+          {terms && (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
+                Terms & Conditions
+              </p>
+              <p className="text-xs text-slate-500">{terms}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+
     return (
       <div className="flex flex-col gap-4">
         {/* Preview toolbar */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setShowPreview(false)}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-slate-50"
@@ -372,191 +652,173 @@ export function InvoiceBuilder({
           >
             <Download className="h-4 w-4" /> Generate PDF
           </button>
+          {/* Preview mode buttons */}
+          <div className="ml-auto flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+            <button
+              onClick={() => setPreviewMode("a4")}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                previewMode === "a4"
+                  ? "bg-white text-foreground shadow-sm"
+                  : "text-slate-500 hover:text-foreground"
+              }`}
+            >
+              <FileText className="h-3.5 w-3.5" /> A4
+            </button>
+            <button
+              onClick={() => setPreviewMode("email")}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                previewMode === "email"
+                  ? "bg-white text-foreground shadow-sm"
+                  : "text-slate-500 hover:text-foreground"
+              }`}
+            >
+              <Mail className="h-3.5 w-3.5" /> Email
+            </button>
+            <button
+              onClick={() => setPreviewMode("whatsapp")}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                previewMode === "whatsapp"
+                  ? "bg-white text-foreground shadow-sm"
+                  : "text-slate-500 hover:text-foreground"
+              }`}
+            >
+              <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+            </button>
+          </div>
         </div>
+
+        {/* Email Preview mode */}
+        {previewMode === "email" && (
+          <div className="mx-auto w-full max-w-3xl rounded-2xl border border-slate-200 bg-slate-100 shadow-sm overflow-hidden">
+            {/* Mock email client chrome */}
+            <div className="bg-slate-700 px-4 py-2 flex items-center gap-2">
+              <div className="flex gap-1.5">
+                <span className="h-3 w-3 rounded-full bg-red-400" />
+                <span className="h-3 w-3 rounded-full bg-yellow-400" />
+                <span className="h-3 w-3 rounded-full bg-green-400" />
+              </div>
+              <span className="ml-2 text-xs text-slate-300 font-medium">Email Preview</span>
+            </div>
+            {/* Email header */}
+            <div className="bg-white border-b border-slate-200 px-6 py-4 space-y-2">
+              <div className="flex items-center gap-3 text-sm">
+                <span className="w-16 text-slate-400 font-medium text-right">From:</span>
+                <span className="text-slate-700">billing@nexora.app ({company.name})</span>
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <span className="w-16 text-slate-400 font-medium text-right">To:</span>
+                <span className="text-slate-700">
+                  {customerMode === "existing"
+                    ? (selectedCustomer?.email ?? "customer@example.com")
+                    : newCustomer.email || "customer@example.com"}
+                </span>
+              </div>
+              <div className="flex items-center gap-3 text-sm">
+                <span className="w-16 text-slate-400 font-medium text-right">Subject:</span>
+                <span className="font-semibold text-slate-800">
+                  Invoice {invoiceNumber} from {company.name} — {fmtINR(totals.grandTotal)}
+                </span>
+              </div>
+            </div>
+            {/* Email body */}
+            <div className="bg-slate-50 px-6 py-4">
+              <div className="bg-white rounded-xl border border-slate-200 p-5 mb-4 text-sm text-slate-700 space-y-3">
+                <p>
+                  Dear{" "}
+                  {customerMode === "existing"
+                    ? (selectedCustomer?.contactPerson ?? "Valued Customer")
+                    : newCustomer.contactPerson || "Valued Customer"}
+                  ,
+                </p>
+                <p>
+                  Please find attached your invoice <strong>{invoiceNumber}</strong> for the amount
+                  of <strong>{fmtINR(totals.grandTotal)}</strong>.
+                </p>
+                <p>
+                  Due Date: <strong>{fmtDate(dueDate)}</strong>
+                </p>
+                {notes && <p className="text-slate-500 text-xs italic">{notes}</p>}
+                <p>
+                  Thank you for your business.
+                  <br />
+                  <span className="text-slate-400">{company.name}</span>
+                </p>
+              </div>
+              {/* Embedded A4 inside email */}
+              <div className="opacity-90 scale-95 origin-top">{A4Block}</div>
+            </div>
+          </div>
+        )}
+
+        {/* WhatsApp Preview mode */}
+        {previewMode === "whatsapp" && (
+          <div className="mx-auto w-full max-w-sm">
+            <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+              {/* WhatsApp chrome header */}
+              <div className="bg-[#075e54] px-4 py-3 flex items-center gap-3">
+                <div className="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center">
+                  <MessageCircle className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-white text-sm font-semibold">
+                    {customerMode === "existing"
+                      ? (selectedCustomer?.name ?? "Customer")
+                      : newCustomer.name || "Customer"}
+                  </p>
+                  <p className="text-white/70 text-xs">
+                    {customerMode === "existing"
+                      ? (selectedCustomer?.phone ?? "")
+                      : newCustomer.phone || ""}
+                  </p>
+                </div>
+              </div>
+              {/* Chat body */}
+              <div className="bg-[#ece5dd] px-4 py-4 min-h-[280px] space-y-3">
+                {/* Outgoing bubble */}
+                <div className="flex justify-end">
+                  <div className="max-w-[85%] bg-[#dcf8c6] rounded-2xl rounded-tr-sm px-4 py-3 shadow-sm">
+                    <p className="text-[13px] text-slate-800 font-semibold mb-1">
+                      📄 Invoice {invoiceNumber}
+                    </p>
+                    <p className="text-xs text-slate-600">
+                      From: {company.name}
+                      {"\n"}
+                    </p>
+                    <div className="mt-2 space-y-0.5 text-xs text-slate-700">
+                      <p>
+                        💰 Amount: <strong>{fmtINR(totals.grandTotal)}</strong>
+                      </p>
+                      <p>📅 Due: {fmtDate(dueDate)}</p>
+                      <p>
+                        🏷️ Items: {lineItems.length} item{lineItems.length !== 1 ? "s" : ""}
+                      </p>
+                    </div>
+                    <div className="mt-3 rounded-xl bg-white/60 px-3 py-2 text-xs text-blue-700 font-medium flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5" />
+                      View &amp; Pay Invoice →
+                    </div>
+                    {notes && (
+                      <p className="mt-2 text-[11px] text-slate-500 italic">{notes}</p>
+                    )}
+                    <p className="mt-1 text-right text-[10px] text-slate-400">
+                      {fmtDate(createdDate)} · ✓✓
+                    </p>
+                  </div>
+                </div>
+                {/* Incoming reply placeholder */}
+                <div className="flex justify-start">
+                  <div className="max-w-[70%] bg-white rounded-2xl rounded-tl-sm px-4 py-2 shadow-sm">
+                    <p className="text-xs text-slate-500">Thanks, will check!</p>
+                    <p className="mt-0.5 text-right text-[10px] text-slate-400">✓</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* A4 preview */}
-        <div className="mx-auto w-full max-w-3xl rounded-2xl border border-slate-200 bg-white shadow-sm print:shadow-none">
-          {/* Header band */}
-          <div className="rounded-t-2xl bg-[image:var(--gradient-brand)] px-8 py-6 text-white">
-            <div className="flex items-start justify-between">
-              <div>
-                <h1 className="text-2xl font-bold">{company.name}</h1>
-                <p className="mt-1 text-sm opacity-80">{company.address}</p>
-                <p className="text-sm opacity-80">
-                  {company.phone} · {company.email}
-                </p>
-                <p className="mt-1 text-xs font-semibold opacity-70">GSTIN: {company.gstin}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-3xl font-black tracking-tight">INVOICE</p>
-                <p className="mt-1 font-mono text-sm opacity-90">{invoiceNumber}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="px-8 py-6 space-y-6">
-            {/* Bill To + Dates */}
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
-                  Bill To
-                </p>
-                <p className="font-bold text-slate-800">{custName}</p>
-                {custGstin !== "—" && <p className="text-xs text-slate-500">GSTIN: {custGstin}</p>}
-                <p className="text-sm text-slate-600 mt-1">{custAddress}</p>
-              </div>
-              <div className="text-right">
-                <div className="space-y-1">
-                  <div>
-                    <span className="text-xs text-slate-400">Invoice Date: </span>
-                    <span className="text-sm font-semibold text-slate-700">
-                      {fmtDate(createdDate)}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-xs text-slate-400">Due Date: </span>
-                    <span className="text-sm font-semibold text-slate-700">{fmtDate(dueDate)}</span>
-                  </div>
-                  <div>
-                    <span className="text-xs text-slate-400">Place of Supply: </span>
-                    <span className="text-sm font-semibold text-slate-700">{placeOfSupply}</span>
-                  </div>
-                  <div>
-                    <span className="text-xs text-slate-400">Supply Type: </span>
-                    <span className="text-sm font-semibold text-slate-700">
-                      {isInterState ? "Inter-State" : "Intra-State"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Items table */}
-            <div className="overflow-x-auto rounded-xl border border-slate-200">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50">
-                    {["#", "Item & HSN", "Qty", "Unit Price", "Disc%", "GST%", "Total"].map((h) => (
-                      <th
-                        key={h}
-                        className="px-3 py-2 text-left text-[11px] font-semibold text-slate-500"
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {lineItems.map((li, i) => {
-                    const computed = computeLineItem(lineToInvoiceItem(li));
-                    return (
-                      <tr key={li.id} className="border-b border-slate-100">
-                        <td className="px-3 py-2 text-slate-400 text-xs">{i + 1}</td>
-                        <td className="px-3 py-2">
-                          <p className="font-medium text-slate-800">{li.productName}</p>
-                          <p className="text-[11px] text-slate-400">HSN: {li.hsnCode}</p>
-                        </td>
-                        <td className="px-3 py-2 text-slate-700">{li.quantity}</td>
-                        <td className="px-3 py-2 text-slate-700">{fmtINR(li.unitPrice)}</td>
-                        <td className="px-3 py-2 text-slate-700">{li.discountPercent}%</td>
-                        <td className="px-3 py-2 text-slate-700">{li.gstPercent}%</td>
-                        <td className="px-3 py-2 font-semibold text-slate-800">
-                          {fmtINR(computed.total)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Totals */}
-            <div className="flex justify-end">
-              <div className="w-72 space-y-1.5">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Subtotal</span>
-                  <span className="font-medium text-slate-700">{fmtINR(totals.subtotal)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Discount</span>
-                  <span className="font-medium text-red-600">-{fmtINR(totals.totalDiscount)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Taxable Value</span>
-                  <span className="font-medium text-slate-700">{fmtINR(totals.taxableValue)}</span>
-                </div>
-                {isInterState ? (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">IGST</span>
-                    <span className="font-medium text-slate-700">{fmtINR(totals.igst)}</span>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-500">CGST</span>
-                      <span className="font-medium text-slate-700">{fmtINR(totals.cgst)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-500">SGST</span>
-                      <span className="font-medium text-slate-700">{fmtINR(totals.sgst)}</span>
-                    </div>
-                  </>
-                )}
-                {totals.roundOff !== 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Round Off</span>
-                    <span className="font-medium text-slate-700">
-                      {totals.roundOff > 0 ? "+" : ""}
-                      {fmtINR(totals.roundOff)}
-                    </span>
-                  </div>
-                )}
-                <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-bold">
-                  <span className="text-slate-800">Grand Total</span>
-                  <span className="text-foreground">{fmtINR(totals.grandTotal)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Amount Paid</span>
-                  <span className="font-medium text-emerald-600">{fmtINR(amountPaid)}</span>
-                </div>
-                <div className="flex justify-between text-sm font-semibold">
-                  <span className="text-slate-700">Balance Due</span>
-                  <span className={balance > 0 ? "text-red-600" : "text-emerald-600"}>
-                    {fmtINR(balance)}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Bank details */}
-            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
-                Bank Details
-              </p>
-              <p className="text-slate-700">
-                {company.bankName} · A/C: {company.accountNumber} · IFSC: {company.ifsc}
-              </p>
-            </div>
-
-            {/* Notes + Terms */}
-            {notes && (
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
-                  Notes
-                </p>
-                <p className="text-sm text-slate-600">{notes}</p>
-              </div>
-            )}
-            {terms && (
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
-                  Terms & Conditions
-                </p>
-                <p className="text-xs text-slate-500">{terms}</p>
-              </div>
-            )}
-          </div>
-        </div>
+        {previewMode === "a4" && A4Block}
       </div>
     );
   }
@@ -817,6 +1079,7 @@ export function InvoiceBuilder({
         {/* ── Invoice Details ── */}
         <SectionCard title="Invoice Details">
           <div className="grid grid-cols-2 gap-3">
+            {/* Existing fields */}
             <div>
               <label className={labelCls}>Invoice Number</label>
               <input
@@ -890,6 +1153,180 @@ export function InvoiceBuilder({
                   {isInterState ? "Inter-State (IGST)" : "Intra-State (CGST+SGST)"}
                 </span>
               </label>
+            </div>
+
+            {/* ── NEW enterprise fields ── */}
+            {/* Invoice Prefix */}
+            <div>
+              <label className={labelCls}>Invoice Prefix</label>
+              <input
+                value={invoicePrefix}
+                onChange={(e) => setInvoicePrefix(e.target.value)}
+                placeholder="e.g. INV"
+                className={inputCls}
+              />
+              <p className="mt-1 text-[10px] text-slate-400">
+                Preview: {invoicePrefix}-2026-XXXX
+              </p>
+            </div>
+
+            {/* Payment Terms */}
+            <div>
+              <label className={labelCls}>Payment Terms</label>
+              <select
+                value={paymentTerms}
+                onChange={(e) => handlePaymentTermsChange(e.target.value)}
+                className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-foreground outline-none transition-colors focus:border-[color:var(--brand-electric)] focus:ring-1 focus:ring-[color:var(--brand-electric)]"
+              >
+                {paymentTermsPresets.map((p) => (
+                  <option key={p.label} value={p.label}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Currency */}
+            <div>
+              <label className={labelCls}>Currency</label>
+              <select
+                value={selectedCurrency}
+                onChange={(e) => setSelectedCurrency(e.target.value)}
+                className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-foreground outline-none transition-colors focus:border-[color:var(--brand-electric)] focus:ring-1 focus:ring-[color:var(--brand-electric)]"
+              >
+                {currencies.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.code} — {c.name} ({c.symbol})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Exchange Rate — shown only when non-INR */}
+            {selectedCurrency !== "INR" && (
+              <div>
+                <label className={labelCls}>
+                  Exchange Rate (1 {selectedCurrency} = ? INR)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={exchangeRate}
+                  onChange={(e) => setExchangeRate(Number(e.target.value) || 1)}
+                  placeholder="e.g. 83.50"
+                  className={inputCls}
+                />
+              </div>
+            )}
+
+            {/* Salesperson */}
+            <div>
+              <label className={labelCls}>Salesperson</label>
+              <select
+                value={salesperson}
+                onChange={(e) => setSalesperson(e.target.value)}
+                className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-foreground outline-none transition-colors focus:border-[color:var(--brand-electric)] focus:ring-1 focus:ring-[color:var(--brand-electric)]"
+              >
+                <option value="">— None —</option>
+                {salespersons.map((sp) => (
+                  <option key={sp.id} value={sp.name}>
+                    {sp.name} ({sp.region})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Reference Number */}
+            <div>
+              <label className={labelCls}>Reference Number</label>
+              <input
+                value={referenceNumber}
+                onChange={(e) => setReferenceNumber(e.target.value)}
+                placeholder="e.g. REF-001"
+                className={inputCls}
+              />
+            </div>
+
+            {/* PO Number */}
+            <div>
+              <label className={labelCls}>PO Number</label>
+              <input
+                value={poNumber}
+                onChange={(e) => setPoNumber(e.target.value)}
+                placeholder="e.g. PO-2026-001"
+                className={inputCls}
+              />
+            </div>
+
+            {/* Delivery Date */}
+            <div>
+              <label className={labelCls}>Delivery Date</label>
+              <input
+                type="date"
+                value={deliveryDate}
+                onChange={(e) => setDeliveryDate(e.target.value)}
+                className={inputCls}
+              />
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* ── Addresses ── */}
+        <SectionCard title="Addresses">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {/* Billing Address */}
+            <div>
+              <label className={labelCls}>Billing Address</label>
+              <textarea
+                value={billingAddress}
+                onChange={(e) => setBillingAddress(e.target.value)}
+                rows={2}
+                placeholder="Billing address"
+                className={textareaCls}
+              />
+            </div>
+
+            {/* Shipping Address */}
+            <div>
+              <label className={labelCls}>Shipping Address</label>
+              <textarea
+                value={shippingAddress}
+                onChange={(e) => {
+                  setShippingAddress(e.target.value);
+                  if (sameAsShipping) setDeliveryAddress(e.target.value);
+                }}
+                rows={2}
+                placeholder="Shipping address"
+                className={textareaCls}
+              />
+            </div>
+
+            {/* Delivery Address */}
+            <div className="sm:col-span-2">
+              <div className="mb-1 flex items-center justify-between">
+                <label className={`${labelCls} mb-0`}>Delivery Address</label>
+                <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-500">
+                  <input
+                    type="checkbox"
+                    checked={sameAsShipping}
+                    onChange={(e) => setSameAsShipping(e.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-slate-300 text-[color:var(--brand-electric)]"
+                  />
+                  Same as Shipping
+                </label>
+              </div>
+              <textarea
+                value={deliveryAddress}
+                onChange={(e) => {
+                  setDeliveryAddress(e.target.value);
+                  if (sameAsShipping) setSameAsShipping(false);
+                }}
+                rows={2}
+                placeholder="Delivery address"
+                className={textareaCls}
+                disabled={sameAsShipping}
+              />
             </div>
           </div>
         </SectionCard>
@@ -1255,6 +1692,121 @@ export function InvoiceBuilder({
                 className={textareaCls}
               />
             </div>
+            {/* NEW: Internal Notes */}
+            <div>
+              <label className={labelCls}>
+                Internal Notes{" "}
+                <span className="font-normal text-slate-400">(not printed on invoice)</span>
+              </label>
+              <textarea
+                value={internalNotes}
+                onChange={(e) => setInternalNotes(e.target.value)}
+                rows={3}
+                placeholder="e.g. Customer prefers RTGS, confirm stock before dispatch"
+                className={textareaCls}
+              />
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* ── Attachments & Signature ── */}
+        <SectionCard title="Attachments & Signature">
+          <div className="space-y-4">
+            {/* Attachments upload zone */}
+            <div>
+              <label className={labelCls}>Attachments</label>
+              <button
+                type="button"
+                onClick={() =>
+                  alert(
+                    "File upload requires backend integration. UI placeholder only.",
+                  )
+                }
+                className="w-full rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center transition-colors hover:border-slate-300 hover:bg-slate-100"
+              >
+                <Paperclip className="mx-auto mb-2 h-6 w-6 text-slate-400" />
+                <p className="text-sm font-medium text-slate-600">
+                  Drag &amp; drop files or click to attach
+                </p>
+                <p className="mt-0.5 text-xs text-slate-400">PDF, JPG, PNG — max 5MB</p>
+              </button>
+            </div>
+
+            {/* Signature zone */}
+            <div>
+              <label className={labelCls}>Signature</label>
+              <div className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center">
+                <PenLine className="mx-auto mb-2 h-6 w-6 text-slate-400" />
+                <p className="text-sm font-medium text-slate-600">Click to upload signature image</p>
+                <div className="mt-3 flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      alert(
+                        "Signature capture requires backend integration. UI placeholder only.",
+                      )
+                    }
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100"
+                  >
+                    <PenLine className="h-3.5 w-3.5" /> Draw Signature
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      alert(
+                        "Signature capture requires backend integration. UI placeholder only.",
+                      )
+                    }
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100"
+                  >
+                    <Paperclip className="h-3.5 w-3.5" /> Upload Image
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* ── AI Assistant ── */}
+        <SectionCard title="AI Assistant">
+          <div className="rounded-xl border border-violet-100 bg-violet-50/40 p-4">
+            {/* Header */}
+            <div className="flex items-center gap-2 mb-4">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-violet-100">
+                <Sparkles className="h-4 w-4 text-violet-600" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-violet-800">Nexora AI</p>
+                <p className="text-[11px] text-violet-500">Powered by Nexora AI (coming soon)</p>
+              </div>
+              <span className="ml-auto rounded-full bg-violet-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-600">
+                Beta
+              </span>
+            </div>
+
+            {/* Action buttons */}
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {[
+                { icon: FileText, label: "Generate Invoice Description" },
+                { icon: Percent, label: "Suggest Discount" },
+                { icon: Clock, label: "Predict Payment Delay" },
+                { icon: Shield, label: "Smart GST Check" },
+                { icon: Package, label: "Suggest Related Products" },
+              ].map(({ icon: Icon, label }) => (
+                <button
+                  key={label}
+                  type="button"
+                  disabled
+                  className="flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2.5 text-left text-sm font-medium text-violet-700 opacity-60 cursor-not-allowed"
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 text-xs">{label}</span>
+                  <span className="rounded-full bg-violet-200 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-600">
+                    Soon
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         </SectionCard>
       </div>
@@ -1332,11 +1884,31 @@ export function InvoiceBuilder({
             >
               <Printer className="h-4 w-4" /> Print
             </button>
+
+            {/* Save action set */}
             <button
               onClick={handleSaveDraft}
               className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-slate-50"
             >
               <FileText className="h-4 w-4" /> Save Draft
+            </button>
+            <button
+              onClick={handleSaveAndNew}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-slate-50"
+            >
+              <Plus className="h-4 w-4" /> Save &amp; New
+            </button>
+            <button
+              onClick={handleSaveAndContinue}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-slate-50"
+            >
+              <Copy className="h-4 w-4" /> Save &amp; Continue
+            </button>
+            <button
+              onClick={handleSaveAndSend}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-slate-50"
+            >
+              <Mail className="h-4 w-4" /> Save &amp; Send
             </button>
             <button
               onClick={handleSaveInvoice}
