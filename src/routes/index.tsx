@@ -181,13 +181,13 @@ function Nav() {
         </nav>
 
         <div className="hidden items-center gap-3 lg:flex">
-          <a href="#" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+          <a href="/login" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
             Login
           </a>
           <Btn href="#contact" variant="outline" size="sm">
             Book Demo
           </Btn>
-          <Btn href="#pricing" size="sm">
+          <Btn href="/signup" size="sm">
             Start Free Trial <ArrowRight className="h-3.5 w-3.5" />
           </Btn>
         </div>
@@ -215,13 +215,13 @@ function Nav() {
               </a>
             ))}
             <div className="mt-3 flex flex-col gap-2">
-              <a href="#" className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary">
+              <a href="/login" className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary">
                 Login
               </a>
               <Btn href="#contact" variant="outline" className="justify-center">
                 Book Demo
               </Btn>
-              <Btn href="#pricing" className="justify-center">
+              <Btn href="/signup" className="justify-center">
                 Start Free Trial <ArrowRight className="h-4 w-4" />
               </Btn>
             </div>
@@ -262,7 +262,7 @@ function Hero() {
           </p>
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Btn href="#pricing" size="lg">
+            <Btn href="/signup" size="lg">
               Start Free Trial <ArrowRight className="h-4 w-4" />
             </Btn>
             <Btn href="#contact" variant="outline" size="lg">
@@ -1615,7 +1615,7 @@ function Features() {
                 {/* CTA */}
                 <div className="mt-7">
                   <a
-                    href="#pricing"
+                    href="/signup"
                     className="inline-flex items-center gap-1.5 text-sm font-semibold text-[color:var(--brand-electric)] transition-all duration-200 hover:gap-3"
                   >
                     Start with {tab.label} free
@@ -1683,7 +1683,7 @@ function AIShowcase() {
           </div>
 
           <div className="mt-8">
-            <Btn href="#pricing" variant="white" size="lg">
+            <Btn href="/signup" variant="white" size="lg">
               Try Nexora AI Free <ArrowRight className="h-4 w-4" />
             </Btn>
           </div>
@@ -2697,7 +2697,7 @@ function FinalCTA() {
               Join 12,000+ operators who replaced spreadsheets and disconnected tools with one platform that actually thinks.
             </p>
             <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-              <Btn href="#pricing" variant="white" size="lg">
+              <Btn href="/signup" variant="white" size="lg">
                 Start Free Trial — 14 days free <ArrowRight className="h-4 w-4" />
               </Btn>
               <a
