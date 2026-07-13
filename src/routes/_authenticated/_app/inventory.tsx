@@ -16,7 +16,6 @@ import {
   Barcode,
   BarChart3,
   Settings,
-  Warehouse,
   Search,
   X,
 } from "lucide-react";
@@ -37,7 +36,6 @@ import { LowStockTab } from "../../../components/inventory/tabs/LowStockTab";
 import { BarcodeTab } from "../../../components/inventory/tabs/BarcodeTab";
 import { ReportsTab } from "../../../components/inventory/tabs/ReportsTab";
 import { SettingsTab } from "../../../components/inventory/tabs/SettingsTab";
-import { WarehouseTab } from "../../../components/inventory/tabs/WarehouseTab";
 
 export const Route = createFileRoute("/_authenticated/_app/inventory")({
   component: InventoryPage,
@@ -60,8 +58,7 @@ type TabId =
   | "low-stock"
   | "barcode"
   | "reports"
-  | "settings"
-  | "warehouse";
+  | "settings";
 
 interface InventoryNavItem {
   id: TabId;
@@ -83,7 +80,6 @@ const navItems: InventoryNavItem[] = [
   { id: "stock-adjustments", label: "Stock Adjustments", icon: SlidersHorizontal },
   { id: "low-stock", label: "Low Stock", icon: AlertTriangle },
   { id: "barcode", label: "Barcode Management", icon: Barcode },
-  { id: "warehouse", label: "Warehouse", icon: Warehouse },
   { id: "reports", label: "Inventory Reports", icon: BarChart3 },
   { id: "settings", label: "Inventory Settings", icon: Settings },
 ];
@@ -291,7 +287,6 @@ function InventoryPage() {
           {activeTab === "stock-adjustments" && <StockAdjustmentsTab />}
           {activeTab === "low-stock" && <LowStockTab onCreatePO={() => setActiveTab("purchase-orders")} />}
           {activeTab === "barcode" && <BarcodeTab />}
-          {activeTab === "warehouse" && <WarehouseTab />}
           {activeTab === "reports" && <ReportsTab />}
           {activeTab === "settings" && <SettingsTab />}
         </div>
