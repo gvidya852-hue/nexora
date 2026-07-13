@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   LayoutGrid,
   Package,
@@ -16,7 +16,11 @@ import {
   Barcode,
   BarChart3,
   Settings,
+  Warehouse,
+  Search,
+  X,
 } from "lucide-react";
+import { products, suppliers, categories } from "../../../lib/inventory-data";
 
 import { OverviewTab } from "../../../components/inventory/tabs/OverviewTab";
 import { ProductsTab } from "../../../components/inventory/tabs/ProductsTab";
@@ -33,6 +37,7 @@ import { LowStockTab } from "../../../components/inventory/tabs/LowStockTab";
 import { BarcodeTab } from "../../../components/inventory/tabs/BarcodeTab";
 import { ReportsTab } from "../../../components/inventory/tabs/ReportsTab";
 import { SettingsTab } from "../../../components/inventory/tabs/SettingsTab";
+import { WarehouseTab } from "../../../components/inventory/tabs/WarehouseTab";
 
 export const Route = createFileRoute("/_authenticated/_app/inventory")({
   component: InventoryPage,
@@ -55,7 +60,8 @@ type TabId =
   | "low-stock"
   | "barcode"
   | "reports"
-  | "settings";
+  | "settings"
+  | "warehouse";
 
 interface InventoryNavItem {
   id: TabId;
@@ -77,9 +83,157 @@ const navItems: InventoryNavItem[] = [
   { id: "stock-adjustments", label: "Stock Adjustments", icon: SlidersHorizontal },
   { id: "low-stock", label: "Low Stock", icon: AlertTriangle },
   { id: "barcode", label: "Barcode Management", icon: Barcode },
+  { id: "warehouse", label: "Warehouse", icon: Warehouse },
   { id: "reports", label: "Inventory Reports", icon: BarChart3 },
   { id: "settings", label: "Inventory Settings", icon: Settings },
 ];
+
+// ── Search result types ───────────────────────────────────────────
+
+interface SearchResult {
+  id: string;
+  label: string;
+  sublabel: string;
+  tab: TabId;
+  type: "product" | "supplier" | "category";
+}
+
+function buildSearchResults(query: string): SearchResult[] {
+  if (!query.trim()) return [];
+  const q = query.toLowerCase();
+  const results: SearchResult[] = [];
+
+  products.forEach((p) => {
+    if (
+      p.name.toLowerCase().includes(q) ||
+      p.sku.toLowerCase().includes(q) ||
+      p.barcode.includes(q)
+    ) {
+      results.push({
+        id: p.id,
+        label: p.name,
+        sublabel: `SKU: ${p.sku} · ${p.barcode}`,
+        tab: "products",
+        type: "product",
+      });
+    }
+  });
+
+  suppliers.forEach((s) => {
+    if (s.name.toLowerCase().includes(q) || s.contactPerson.toLowerCase().includes(q)) {
+      results.push({
+        id: s.id,
+        label: s.name,
+        sublabel: `Supplier · ${s.city}`,
+        tab: "suppliers",
+        type: "supplier",
+      });
+    }
+  });
+
+  categories.forEach((c) => {
+    if (c.name.toLowerCase().includes(q)) {
+      results.push({
+        id: c.id,
+        label: c.name,
+        sublabel: `Category · ${c.productCount} products`,
+        tab: "categories",
+        type: "category",
+      });
+    }
+  });
+
+  return results.slice(0, 8);
+}
+
+const typeIcon: Record<string, React.ElementType> = {
+  product: Package,
+  supplier: Truck,
+  category: Tag,
+};
+
+// ── Global Search Component ───────────────────────────────────────
+
+function GlobalSearch({ onNavigate }: { onNavigate: (tab: TabId) => void }) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const results = buildSearchResults(query);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  function handleSelect(result: SearchResult) {
+    onNavigate(result.tab);
+    setQuery("");
+    setOpen(false);
+  }
+
+  return (
+    <div ref={containerRef} className="relative w-full max-w-sm">
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <input
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          placeholder="Search products, suppliers, categories…"
+          className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-sm outline-none transition-colors placeholder:text-slate-400 focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+        />
+        {query && (
+          <button
+            onClick={() => { setQuery(""); setOpen(false); }}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
+      {open && query.trim() && (
+        <div className="absolute left-0 right-0 top-full z-50 mt-1.5 rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+          {results.length === 0 ? (
+            <p className="px-4 py-3 text-sm text-muted-foreground">No results found.</p>
+          ) : (
+            <ul>
+              {results.map((r) => {
+                const Icon = typeIcon[r.type] ?? Package;
+                return (
+                  <li key={r.id}>
+                    <button
+                      onClick={() => handleSelect(r)}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+                        <Icon className="h-3.5 w-3.5 text-slate-500" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-foreground">{r.label}</p>
+                        <p className="truncate text-xs text-muted-foreground">{r.sublabel}</p>
+                      </div>
+                      <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500 capitalize">
+                        {r.type}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────
 
 function InventoryPage() {
   const [activeTab, setActiveTab] = useState<TabId>("overview");
@@ -88,13 +242,14 @@ function InventoryPage() {
     <div className="min-h-full px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[1400px] space-y-6">
         {/* Page Header */}
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Inventory Management</h1>
             <p className="mt-0.5 text-sm text-muted-foreground">
               Products, stock, purchasing, and warehouse operations — all in one place.
             </p>
           </div>
+          <GlobalSearch onNavigate={(tab) => setActiveTab(tab)} />
         </div>
 
         {/* Sub-navigation */}
@@ -136,6 +291,7 @@ function InventoryPage() {
           {activeTab === "stock-adjustments" && <StockAdjustmentsTab />}
           {activeTab === "low-stock" && <LowStockTab onCreatePO={() => setActiveTab("purchase-orders")} />}
           {activeTab === "barcode" && <BarcodeTab />}
+          {activeTab === "warehouse" && <WarehouseTab />}
           {activeTab === "reports" && <ReportsTab />}
           {activeTab === "settings" && <SettingsTab />}
         </div>

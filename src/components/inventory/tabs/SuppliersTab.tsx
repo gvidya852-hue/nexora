@@ -1,8 +1,19 @@
 import { useState } from "react";
-import { Plus, MoreVertical, Pencil, Trash2, Users, Star, Phone, Mail, MapPin, Building2 } from "lucide-react";
-import { suppliers as initialSuppliers, purchaseOrders, fmtINR } from "@/lib/inventory-data";
+import {
+  Plus, MoreVertical, Pencil, Trash2, Users, Star, Phone, Mail, MapPin,
+  Building2, Clock, CreditCard, FileText, Upload, TrendingUp, AlertCircle,
+  ShoppingCart, DollarSign,
+} from "lucide-react";
+import {
+  suppliers as initialSuppliers,
+  purchaseOrders,
+  goodsReceivedNotes,
+  fmtINR,
+} from "@/lib/inventory-data";
 import type { Supplier } from "@/lib/inventory-data";
-import { SectionCard, PrimaryButton, SearchInput, StatusPill, EmptyState, fmtDate } from "@/components/inventory/shared";
+import {
+  SectionCard, StatTile, PrimaryButton, SearchInput, StatusPill, EmptyState, fmtDate,
+} from "@/components/inventory/shared";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +59,19 @@ function StarRating({ rating, size = "sm" }: { rating: number; size?: "sm" | "lg
 
 // ── Supplier Profile Dialog ───────────────────────────────────────
 
+const DOCUMENT_ITEMS = [
+  "GST Certificate",
+  "PAN Card",
+  "Trade License",
+  "MSME Certificate",
+];
+
+function maskAccount(acc?: string) {
+  if (!acc) return "—";
+  if (acc.length <= 4) return acc;
+  return "•".repeat(acc.length - 4) + acc.slice(-4);
+}
+
 function SupplierProfileDialog({
   supplier,
   onClose,
@@ -58,10 +82,14 @@ function SupplierProfileDialog({
   if (!supplier) return null;
 
   const supplierPOs = purchaseOrders.filter((po) => po.supplierId === supplier.id);
+  const recentPOs = supplierPOs.slice(0, 3);
+  const fullAddress = [supplier.address, supplier.city, supplier.state, supplier.pincode]
+    .filter(Boolean)
+    .join(", ");
 
   return (
     <Dialog open={!!supplier} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Supplier Profile</DialogTitle>
         </DialogHeader>
@@ -76,8 +104,12 @@ function SupplierProfileDialog({
               <div className="flex-1 min-w-0">
                 <h3 className="text-base font-semibold text-foreground">{supplier.name}</h3>
                 <p className="text-sm text-muted-foreground">{supplier.contactPerson}</p>
-                <div className="mt-2">
+                <div className="mt-2 flex items-center gap-3">
                   <StarRating rating={supplier.rating} size="lg" />
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Clock className="h-3.5 w-3.5" />
+                    {supplier.leadTimeDays} days lead time
+                  </span>
                 </div>
               </div>
               {supplier.outstandingAmount > 0 && (
@@ -86,6 +118,41 @@ function SupplierProfileDialog({
                   <p className="text-base font-bold text-red-600">{fmtINR(supplier.outstandingAmount)}</p>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Notes section */}
+          {supplier.notes && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <div className="flex items-start gap-2.5">
+                <AlertCircle className="h-4 w-4 shrink-0 text-amber-500 mt-0.5" />
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 mb-1">Notes</p>
+                  <p className="text-sm text-amber-800">{supplier.notes}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Purchase History stats */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 bg-white p-3 text-center">
+              <p className="text-lg font-bold text-foreground">{fmtINR(supplier.totalPurchases)}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Total Purchases</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-3 text-center">
+              <p className={`text-lg font-bold ${supplier.outstandingAmount > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                {fmtINR(supplier.outstandingAmount)}
+              </p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Outstanding</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-3 text-center">
+              <p className="text-lg font-bold text-foreground">{supplier.productsSupplied}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Products Supplied</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-3 text-center">
+              <p className="text-lg font-bold text-foreground">{supplier.rating.toFixed(1)}</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Rating</p>
             </div>
           </div>
 
@@ -107,11 +174,11 @@ function SupplierProfileDialog({
                   <p className="text-sm font-medium text-foreground truncate">{supplier.email}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
-                <MapPin className="h-4 w-4 shrink-0 text-slate-400" />
+              <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:col-span-2">
+                <MapPin className="h-4 w-4 shrink-0 text-slate-400 mt-0.5" />
                 <div>
-                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">City</p>
-                  <p className="text-sm font-medium text-foreground">{supplier.city}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Address</p>
+                  <p className="text-sm font-medium text-foreground">{fullAddress || "—"}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
@@ -121,34 +188,91 @@ function SupplierProfileDialog({
                   <p className="text-sm font-mono font-medium text-foreground">{supplier.gstNumber}</p>
                 </div>
               </div>
+              <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                <FileText className="h-4 w-4 shrink-0 text-slate-400" />
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">PAN</p>
+                  <p className="text-sm font-mono font-medium text-foreground">{supplier.pan || "—"}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                <CreditCard className="h-4 w-4 shrink-0 text-slate-400" />
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Payment Terms</p>
+                  <p className="text-sm font-medium text-foreground">{supplier.paymentTerms || "—"}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                <Clock className="h-4 w-4 shrink-0 text-slate-400" />
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Lead Time</p>
+                  <p className="text-sm font-medium text-foreground">{supplier.leadTimeDays} days</p>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-xl border border-slate-200 bg-white p-3 text-center">
-              <p className="text-lg font-bold text-foreground">{fmtINR(supplier.totalPurchases)}</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Total Purchases</p>
+          {/* Bank Details */}
+          {(supplier.bankName || supplier.accountNumber || supplier.ifsc) && (
+            <div>
+              <h4 className="mb-3 text-sm font-semibold text-foreground">Bank Details</h4>
+              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+                {supplier.bankName && (
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Bank Name</p>
+                    <p className="text-sm font-medium text-foreground">{supplier.bankName}</p>
+                  </div>
+                )}
+                {supplier.accountNumber && (
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Account Number</p>
+                    <p className="text-sm font-mono font-medium text-foreground">{maskAccount(supplier.accountNumber)}</p>
+                  </div>
+                )}
+                {supplier.ifsc && (
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">IFSC Code</p>
+                    <p className="text-sm font-mono font-medium text-foreground">{supplier.ifsc}</p>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-3 text-center">
-              <p className={`text-lg font-bold ${supplier.outstandingAmount > 0 ? "text-red-600" : "text-emerald-600"}`}>
-                {fmtINR(supplier.outstandingAmount)}
-              </p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Outstanding</p>
+          )}
+
+          {/* Documents Placeholder */}
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h4 className="text-sm font-semibold text-foreground">Documents</h4>
+              <button
+                disabled
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-400 cursor-not-allowed"
+              >
+                <Upload className="h-3.5 w-3.5" />
+                Upload Documents
+              </button>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white p-3 text-center">
-              <p className="text-lg font-bold text-foreground">{supplier.productsSupplied}</p>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Products Supplied</p>
+            <div className="rounded-xl border border-slate-200 overflow-hidden divide-y divide-slate-100">
+              {DOCUMENT_ITEMS.map((doc) => (
+                <div key={doc} className="flex items-center justify-between bg-white px-4 py-3">
+                  <div className="flex items-center gap-2.5">
+                    <FileText className="h-4 w-4 text-slate-300" />
+                    <span className="text-sm text-foreground">{doc}</span>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-500">
+                    Not uploaded
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Purchase History */}
+          {/* Recent Orders */}
           <div>
             <h4 className="mb-3 text-sm font-semibold text-foreground">
-              Purchase History
-              <span className="ml-2 text-xs font-normal text-muted-foreground">({supplierPOs.length} orders)</span>
+              Recent Orders
+              <span className="ml-2 text-xs font-normal text-muted-foreground">({supplierPOs.length} total)</span>
             </h4>
-            {supplierPOs.length === 0 ? (
+            {recentPOs.length === 0 ? (
               <p className="rounded-xl border border-slate-200 bg-slate-50 py-6 text-center text-sm text-muted-foreground">
                 No purchase orders found.
               </p>
@@ -164,7 +288,7 @@ function SupplierProfileDialog({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {supplierPOs.map((po) => (
+                    {recentPOs.map((po) => (
                       <TableRow key={po.id} className="border-slate-100 hover:bg-slate-50/60">
                         <TableCell className="text-sm font-mono font-medium text-foreground">{po.poNumber}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{fmtDate(po.createdDate)}</TableCell>
@@ -200,7 +324,33 @@ interface SupplierFormState {
   email: string;
   gstNumber: string;
   city: string;
+  pan: string;
+  address: string;
+  state: string;
+  pincode: string;
+  paymentTerms: string;
+  leadTimeDays: string;
+  bankName: string;
+  accountNumber: string;
+  ifsc: string;
+  notes: string;
 }
+
+const PAYMENT_TERMS_OPTIONS = [
+  { value: "", label: "Select payment terms" },
+  { value: "Net 30", label: "Net 30" },
+  { value: "Net 45", label: "Net 45" },
+  { value: "Net 60", label: "Net 60" },
+  { value: "Advance", label: "Advance" },
+  { value: "On Delivery", label: "On Delivery" },
+];
+
+const EMPTY_FORM: SupplierFormState = {
+  name: "", contactPerson: "", phone: "", email: "",
+  gstNumber: "", city: "", pan: "", address: "", state: "",
+  pincode: "", paymentTerms: "", leadTimeDays: "",
+  bankName: "", accountNumber: "", ifsc: "", notes: "",
+};
 
 function SupplierFormDialog({
   open,
@@ -215,9 +365,7 @@ function SupplierFormDialog({
   onSubmit: (data: SupplierFormState) => void;
   title: string;
 }) {
-  const [form, setForm] = useState<SupplierFormState>(
-    initial ?? { name: "", contactPerson: "", phone: "", email: "", gstNumber: "", city: "" }
-  );
+  const [form, setForm] = useState<SupplierFormState>(initial ?? EMPTY_FORM);
 
   const handleOpenChange = (o: boolean) => {
     if (o && initial) setForm(initial);
@@ -231,32 +379,132 @@ function SupplierFormDialog({
     onClose();
   };
 
-  const field = (label: string, key: keyof SupplierFormState, placeholder: string, required = false) => (
-    <div className="space-y-1.5">
-      <label className="text-sm font-medium text-foreground">{label}</label>
-      <input
-        className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-        value={form[key]}
-        onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-        placeholder={placeholder}
-        required={required}
-      />
-    </div>
+  const set = (key: keyof SupplierFormState) => (
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
+      setForm((f) => ({ ...f, [key]: e.target.value }))
+  );
+
+  const inputCls = "h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500";
+  const labelCls = "text-sm font-medium text-foreground";
+
+  const sectionLabel = (text: string) => (
+    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-2">{text}</p>
   );
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-          {field("Supplier Name", "name", "e.g. Ingram Micro India", true)}
-          {field("Contact Person", "contactPerson", "e.g. Rakesh Malhotra")}
-          {field("Phone", "phone", "e.g. +91 98200 11223")}
-          {field("Email", "email", "e.g. contact@supplier.com")}
-          {field("GST Number", "gstNumber", "e.g. 27AAACI1234M1Z5")}
-          {field("City", "city", "e.g. Mumbai")}
+          {sectionLabel("Basic Information")}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className={labelCls}>Supplier Name *</label>
+              <input className={inputCls} value={form.name} onChange={set("name")} placeholder="e.g. Ingram Micro India" required />
+            </div>
+            <div className="space-y-1.5">
+              <label className={labelCls}>Contact Person</label>
+              <input className={inputCls} value={form.contactPerson} onChange={set("contactPerson")} placeholder="e.g. Rakesh Malhotra" />
+            </div>
+            <div className="space-y-1.5">
+              <label className={labelCls}>Phone</label>
+              <input className={inputCls} value={form.phone} onChange={set("phone")} placeholder="e.g. +91 98200 11223" />
+            </div>
+            <div className="space-y-1.5">
+              <label className={labelCls}>Email</label>
+              <input className={inputCls} type="email" value={form.email} onChange={set("email")} placeholder="e.g. contact@supplier.com" />
+            </div>
+            <div className="space-y-1.5">
+              <label className={labelCls}>City</label>
+              <input className={inputCls} value={form.city} onChange={set("city")} placeholder="e.g. Mumbai" />
+            </div>
+          </div>
+
+          {sectionLabel("Address")}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className={labelCls}>Street Address</label>
+              <input className={inputCls} value={form.address} onChange={set("address")} placeholder="e.g. 4th Floor, Infinity Tower, Malad West" />
+            </div>
+            <div className="space-y-1.5">
+              <label className={labelCls}>State</label>
+              <input className={inputCls} value={form.state} onChange={set("state")} placeholder="e.g. Maharashtra" />
+            </div>
+            <div className="space-y-1.5">
+              <label className={labelCls}>Pincode</label>
+              <input className={inputCls} value={form.pincode} onChange={set("pincode")} placeholder="e.g. 400064" />
+            </div>
+          </div>
+
+          {sectionLabel("Tax & Compliance")}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className={labelCls}>GST Number</label>
+              <input className={inputCls} value={form.gstNumber} onChange={set("gstNumber")} placeholder="e.g. 27AAACI1234M1Z5" />
+            </div>
+            <div className="space-y-1.5">
+              <label className={labelCls}>PAN</label>
+              <input className={inputCls} value={form.pan} onChange={set("pan")} placeholder="e.g. AAACI1234M" />
+            </div>
+          </div>
+
+          {sectionLabel("Commercial Terms")}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className={labelCls}>Payment Terms</label>
+              <select
+                className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                value={form.paymentTerms}
+                onChange={set("paymentTerms")}
+              >
+                {PAYMENT_TERMS_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className={labelCls}>Lead Time (days)</label>
+              <input
+                className={inputCls}
+                type="number"
+                min="0"
+                value={form.leadTimeDays}
+                onChange={set("leadTimeDays")}
+                placeholder="e.g. 5"
+              />
+            </div>
+          </div>
+
+          {sectionLabel("Bank Details")}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className={labelCls}>Bank Name</label>
+              <input className={inputCls} value={form.bankName} onChange={set("bankName")} placeholder="e.g. HDFC Bank" />
+            </div>
+            <div className="space-y-1.5">
+              <label className={labelCls}>IFSC Code</label>
+              <input className={inputCls} value={form.ifsc} onChange={set("ifsc")} placeholder="e.g. HDFC0001234" />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className={labelCls}>Account Number</label>
+              <input className={inputCls} value={form.accountNumber} onChange={set("accountNumber")} placeholder="e.g. 50100112233445" />
+            </div>
+          </div>
+
+          {sectionLabel("Notes")}
+          <div className="space-y-1.5">
+            <label className={labelCls}>Internal Notes</label>
+            <textarea
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none"
+              rows={3}
+              value={form.notes}
+              onChange={set("notes")}
+              placeholder="e.g. Preferred distributor for Dell products."
+            />
+          </div>
+
           <DialogFooter className="pt-2">
             <DialogClose asChild>
               <button type="button" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-foreground hover:bg-slate-50">
@@ -276,6 +524,27 @@ function SupplierFormDialog({
   );
 }
 
+function supplierToFormState(s: Supplier): SupplierFormState {
+  return {
+    name: s.name,
+    contactPerson: s.contactPerson,
+    phone: s.phone,
+    email: s.email,
+    gstNumber: s.gstNumber,
+    city: s.city,
+    pan: s.pan ?? "",
+    address: s.address ?? "",
+    state: s.state ?? "",
+    pincode: s.pincode ?? "",
+    paymentTerms: s.paymentTerms ?? "",
+    leadTimeDays: s.leadTimeDays != null ? String(s.leadTimeDays) : "",
+    bankName: s.bankName ?? "",
+    accountNumber: s.accountNumber ?? "",
+    ifsc: s.ifsc ?? "",
+    notes: s.notes ?? "",
+  };
+}
+
 // ── Main Tab ──────────────────────────────────────────────────────
 
 export function SuppliersTab() {
@@ -290,9 +559,17 @@ export function SuppliersTab() {
     return (
       s.name.toLowerCase().includes(q) ||
       s.city.toLowerCase().includes(q) ||
-      s.contactPerson.toLowerCase().includes(q)
+      s.contactPerson.toLowerCase().includes(q) ||
+      (s.state ?? "").toLowerCase().includes(q)
     );
   });
+
+  // Stat tiles calculations
+  const totalPurchasesValue = suppliers.reduce((acc, s) => acc + s.totalPurchases, 0);
+  const totalOutstanding = suppliers.reduce((acc, s) => acc + s.outstandingAmount, 0);
+  const avgRating = suppliers.length
+    ? suppliers.reduce((acc, s) => acc + s.rating, 0) / suppliers.length
+    : 0;
 
   const handleCreate = (data: SupplierFormState) => {
     const newSupplier: Supplier = {
@@ -303,10 +580,20 @@ export function SuppliersTab() {
       email: data.email,
       gstNumber: data.gstNumber,
       city: data.city,
+      pan: data.pan,
+      address: data.address,
+      state: data.state,
+      pincode: data.pincode,
+      paymentTerms: data.paymentTerms,
+      leadTimeDays: parseInt(data.leadTimeDays, 10) || 0,
       outstandingAmount: 0,
       rating: 0,
       totalPurchases: 0,
       productsSupplied: 0,
+      bankName: data.bankName || undefined,
+      accountNumber: data.accountNumber || undefined,
+      ifsc: data.ifsc || undefined,
+      notes: data.notes || undefined,
     };
     setSuppliers((prev) => [...prev, newSupplier]);
   };
@@ -316,7 +603,25 @@ export function SuppliersTab() {
     setSuppliers((prev) =>
       prev.map((s) =>
         s.id === editTarget.id
-          ? { ...s, name: data.name, contactPerson: data.contactPerson, phone: data.phone, email: data.email, gstNumber: data.gstNumber, city: data.city }
+          ? {
+              ...s,
+              name: data.name,
+              contactPerson: data.contactPerson,
+              phone: data.phone,
+              email: data.email,
+              gstNumber: data.gstNumber,
+              city: data.city,
+              pan: data.pan,
+              address: data.address,
+              state: data.state,
+              pincode: data.pincode,
+              paymentTerms: data.paymentTerms,
+              leadTimeDays: parseInt(data.leadTimeDays, 10) || 0,
+              bankName: data.bankName || undefined,
+              accountNumber: data.accountNumber || undefined,
+              ifsc: data.ifsc || undefined,
+              notes: data.notes || undefined,
+            }
           : s
       )
     );
@@ -331,6 +636,42 @@ export function SuppliersTab() {
 
   return (
     <>
+      {/* Stat Tiles */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 mb-6">
+        <StatTile
+          label="Total Suppliers"
+          value={String(suppliers.length)}
+          icon={Users}
+          bg="bg-blue-50"
+          iconColor="text-blue-600"
+          index={0}
+        />
+        <StatTile
+          label="Total Purchases Value"
+          value={fmtINR(totalPurchasesValue)}
+          icon={TrendingUp}
+          bg="bg-emerald-50"
+          iconColor="text-emerald-600"
+          index={1}
+        />
+        <StatTile
+          label="Total Outstanding"
+          value={fmtINR(totalOutstanding)}
+          icon={DollarSign}
+          bg="bg-red-50"
+          iconColor="text-red-500"
+          index={2}
+        />
+        <StatTile
+          label="Avg Rating"
+          value={avgRating.toFixed(1)}
+          icon={Star}
+          bg="bg-amber-50"
+          iconColor="text-amber-500"
+          index={3}
+        />
+      </div>
+
       <SectionCard
         title="Suppliers"
         subtitle={`${suppliers.length} suppliers`}
@@ -352,74 +693,93 @@ export function SuppliersTab() {
         {filtered.length === 0 ? (
           <EmptyState icon={Users} title="No suppliers found" subtitle="Try adjusting your search or add a new supplier." />
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow className="border-slate-100 hover:bg-transparent">
-                <TableHead className="text-xs font-semibold text-muted-foreground">Supplier</TableHead>
-                <TableHead className="text-xs font-semibold text-muted-foreground">Phone</TableHead>
-                <TableHead className="text-xs font-semibold text-muted-foreground">Email</TableHead>
-                <TableHead className="text-xs font-semibold text-muted-foreground">GST Number</TableHead>
-                <TableHead className="text-xs font-semibold text-muted-foreground">City</TableHead>
-                <TableHead className="text-xs font-semibold text-muted-foreground text-right">Outstanding</TableHead>
-                <TableHead className="text-xs font-semibold text-muted-foreground">Rating</TableHead>
-                <TableHead className="text-xs font-semibold text-muted-foreground text-right">Total Purchases</TableHead>
-                <TableHead className="text-xs font-semibold text-muted-foreground text-right">Products</TableHead>
-                <TableHead className="w-12" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((s) => (
-                <TableRow
-                  key={s.id}
-                  className="border-slate-100 hover:bg-slate-50/60 cursor-pointer"
-                  onClick={() => setProfileTarget(s)}
-                >
-                  <TableCell>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{s.name}</p>
-                      <p className="text-xs text-muted-foreground">{s.contactPerson}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{s.phone}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground max-w-[160px] truncate">{s.email}</TableCell>
-                  <TableCell className="text-xs font-mono text-muted-foreground">{s.gstNumber}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{s.city}</TableCell>
-                  <TableCell className="text-right">
-                    <span className={`text-sm font-semibold ${s.outstandingAmount > 0 ? "text-red-600" : "text-emerald-600"}`}>
-                      {fmtINR(s.outstandingAmount)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <StarRating rating={s.rating} />
-                  </TableCell>
-                  <TableCell className="text-right text-sm text-muted-foreground whitespace-nowrap">
-                    {fmtINR(s.totalPurchases)}
-                  </TableCell>
-                  <TableCell className="text-right text-sm text-muted-foreground">{s.productsSupplied}</TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
-                          <MoreVertical className="h-4 w-4" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-36">
-                        <DropdownMenuItem onClick={() => setEditTarget(s)}>
-                          <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleDelete(s.id)}
-                          className="text-red-600 focus:text-red-600"
-                        >
-                          <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-slate-100 hover:bg-transparent">
+                  <TableHead className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Supplier</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Phone</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Email</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground whitespace-nowrap">GST Number</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground whitespace-nowrap">City</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Payment Terms</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Lead Time</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground text-right whitespace-nowrap">Outstanding</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Rating</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground text-right whitespace-nowrap">Total Purchases</TableHead>
+                  <TableHead className="text-xs font-semibold text-muted-foreground text-right whitespace-nowrap">Products</TableHead>
+                  <TableHead className="w-12" />
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((s) => (
+                  <TableRow
+                    key={s.id}
+                    className="border-slate-100 hover:bg-slate-50/60 cursor-pointer"
+                    onClick={() => setProfileTarget(s)}
+                  >
+                    <TableCell>
+                      <div>
+                        <p className="text-sm font-medium text-foreground whitespace-nowrap">{s.name}</p>
+                        <p className="text-xs text-muted-foreground">{s.contactPerson}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{s.phone}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground max-w-[160px] truncate">{s.email}</TableCell>
+                    <TableCell className="text-xs font-mono text-muted-foreground whitespace-nowrap">{s.gstNumber}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{s.city}</TableCell>
+                    <TableCell>
+                      {s.paymentTerms ? (
+                        <span className="inline-flex items-center rounded-full bg-blue-50 border border-blue-200 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700 whitespace-nowrap">
+                          {s.paymentTerms}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <span className="flex items-center gap-1 text-sm text-muted-foreground whitespace-nowrap">
+                        <Clock className="h-3.5 w-3.5 text-slate-400" />
+                        {s.leadTimeDays} days
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className={`text-sm font-semibold whitespace-nowrap ${s.outstandingAmount > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                        {fmtINR(s.outstandingAmount)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <StarRating rating={s.rating} />
+                    </TableCell>
+                    <TableCell className="text-right text-sm text-muted-foreground whitespace-nowrap">
+                      {fmtINR(s.totalPurchases)}
+                    </TableCell>
+                    <TableCell className="text-right text-sm text-muted-foreground">{s.productsSupplied}</TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
+                            <MoreVertical className="h-4 w-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-36">
+                          <DropdownMenuItem onClick={() => setEditTarget(s)}>
+                            <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleDelete(s.id)}
+                            className="text-red-600 focus:text-red-600"
+                          >
+                            <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </SectionCard>
 
@@ -442,14 +802,7 @@ export function SuppliersTab() {
         <SupplierFormDialog
           open={!!editTarget}
           onClose={() => setEditTarget(null)}
-          initial={{
-            name: editTarget.name,
-            contactPerson: editTarget.contactPerson,
-            phone: editTarget.phone,
-            email: editTarget.email,
-            gstNumber: editTarget.gstNumber,
-            city: editTarget.city,
-          }}
+          initial={supplierToFormState(editTarget)}
           onSubmit={handleEdit}
           title="Edit Supplier"
         />

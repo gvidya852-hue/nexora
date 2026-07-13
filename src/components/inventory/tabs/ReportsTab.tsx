@@ -20,6 +20,11 @@ import {
   stockValue,
   fmtINR,
 } from "@/lib/inventory-data";
+import {
+  purchaseOrders,
+  getSupplier,
+  getProduct,
+} from "@/lib/inventory-data";
 import type { Product } from "@/lib/inventory-data";
 import { SectionCard, SecondaryButton } from "@/components/inventory/shared";
 
@@ -31,7 +36,11 @@ type ReportView =
   | "dead-stock"
   | "fast-moving"
   | "category"
-  | "supplier";
+  | "supplier"
+  | "purchase"
+  | "supplier-report"
+  | "category-performance"
+  | "inventory-aging";
 
 const REPORT_TABS: { id: ReportView; label: string }[] = [
   { id: "stock-value", label: "Stock Value" },
@@ -40,6 +49,10 @@ const REPORT_TABS: { id: ReportView; label: string }[] = [
   { id: "fast-moving", label: "Fast Moving" },
   { id: "category", label: "Category Performance" },
   { id: "supplier", label: "Supplier Performance" },
+  { id: "purchase", label: "Purchase Report" },
+  { id: "supplier-report", label: "Supplier Report" },
+  { id: "category-performance", label: "Category Analysis" },
+  { id: "inventory-aging", label: "Inventory Aging" },
 ];
 
 // ── CSV download helper ───────────────────────────────────────────
@@ -552,6 +565,316 @@ function SupplierReport() {
   );
 }
 
+// ── 7. Purchase Report ────────────────────────────────────────────
+
+function PurchaseReport() {
+  const rows = purchaseOrders.map((po) => {
+    const supplier = getSupplier(po.supplierId);
+    const total = po.items.reduce((s, it) => s + it.quantity * it.unitPrice, 0);
+    return { po, supplier, total };
+  });
+  const grandTotal = rows.reduce((s, r) => s + r.total, 0);
+
+  const statusColors: Record<string, string> = {
+    draft: "bg-slate-100 text-slate-600 border-slate-200",
+    "pending-approval": "bg-amber-50 text-amber-700 border-amber-200",
+    approved: "bg-blue-50 text-blue-700 border-blue-200",
+    ordered: "bg-violet-50 text-violet-700 border-violet-200",
+    "partially-received": "bg-cyan-50 text-cyan-700 border-cyan-200",
+    received: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    cancelled: "bg-red-50 text-red-600 border-red-200",
+  };
+
+  function handleExport() {
+    downloadCSV(
+      "purchase-report.csv",
+      rows.map((r) => [
+        r.po.poNumber,
+        r.supplier?.name ?? "",
+        r.po.createdDate,
+        String(r.po.items.length),
+        r.po.status,
+        String(r.total),
+      ]),
+      ["PO Number", "Supplier", "Date", "Items", "Status", "Total Value"]
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <SecondaryButton icon={Download} onClick={handleExport}>
+          Export CSV
+        </SecondaryButton>
+      </div>
+      <div className="overflow-x-auto rounded-xl border border-slate-200">
+        <table className="w-full min-w-[640px]">
+          <thead>
+            <tr className="border-b border-slate-100 bg-slate-50 text-left">
+              {["PO Number", "Supplier", "Date", "Items", "Status", "Total Value"].map((h) => (
+                <th key={h} className="px-4 py-3 text-xs font-semibold text-muted-foreground">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ po, supplier, total }) => (
+              <tr key={po.id} className="border-b border-slate-100 hover:bg-slate-50 last:border-0">
+                <td className="px-4 py-3 font-mono text-sm font-semibold text-foreground">{po.poNumber}</td>
+                <td className="px-4 py-3 text-sm text-foreground">{supplier?.name ?? "—"}</td>
+                <td className="px-4 py-3 text-sm text-foreground">{po.createdDate}</td>
+                <td className="px-4 py-3 text-sm text-foreground">{po.items.length}</td>
+                <td className="px-4 py-3">
+                  <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold capitalize ${statusColors[po.status] ?? "bg-slate-100 text-slate-600 border-slate-200"}`}>
+                    {po.status.replace(/-/g, " ")}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-sm font-bold text-foreground">{fmtINR(total)}</td>
+              </tr>
+            ))}
+            <tr className="border-t-2 border-slate-200 bg-slate-50 font-bold">
+              <td className="px-4 py-3 text-sm font-bold text-foreground" colSpan={5}>Grand Total</td>
+              <td className="px-4 py-3 text-sm font-bold text-foreground">{fmtINR(grandTotal)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── 8. Supplier Report ────────────────────────────────────────────
+
+function SupplierDetailReport() {
+  const sorted = [...suppliers].sort((a, b) => b.totalPurchases - a.totalPurchases);
+
+  function Stars({ rating }: { rating: number }) {
+    return (
+      <span className="flex items-center gap-0.5">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <span key={i} className={`text-sm ${i < Math.floor(rating) ? "text-amber-400" : "text-slate-200"}`}>★</span>
+        ))}
+        <span className="ml-1 text-xs text-muted-foreground">{rating.toFixed(1)}</span>
+      </span>
+    );
+  }
+
+  function handleExport() {
+    downloadCSV(
+      "supplier-report.csv",
+      sorted.map((s) => [
+        s.name,
+        String(s.totalPurchases),
+        String(s.productsSupplied),
+        String(s.rating),
+        String(s.outstandingAmount),
+        s.paymentTerms,
+      ]),
+      ["Supplier Name", "Total Purchases", "Products Supplied", "Rating", "Outstanding", "Payment Terms"]
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <SecondaryButton icon={Download} onClick={handleExport}>Export CSV</SecondaryButton>
+      </div>
+      <div className="overflow-x-auto rounded-xl border border-slate-200">
+        <table className="w-full min-w-[700px]">
+          <thead>
+            <tr className="border-b border-slate-100 bg-slate-50 text-left">
+              {["Supplier Name", "Total Purchases", "Products Supplied", "Rating", "Outstanding", "Payment Terms"].map((h) => (
+                <th key={h} className="px-4 py-3 text-xs font-semibold text-muted-foreground">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((s) => (
+              <tr key={s.id} className="border-b border-slate-100 hover:bg-slate-50 last:border-0">
+                <td className="px-4 py-3">
+                  <p className="text-sm font-semibold text-foreground">{s.name}</p>
+                  <p className="text-xs text-muted-foreground">{s.contactPerson}</p>
+                </td>
+                <td className="px-4 py-3 text-sm font-bold text-foreground">{fmtINR(s.totalPurchases)}</td>
+                <td className="px-4 py-3 text-sm text-foreground">{s.productsSupplied}</td>
+                <td className="px-4 py-3"><Stars rating={s.rating} /></td>
+                <td className="px-4 py-3">
+                  <span className={`text-sm font-semibold ${s.outstandingAmount > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                    {s.outstandingAmount > 0 ? fmtINR(s.outstandingAmount) : "Cleared"}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-sm text-foreground">{s.paymentTerms}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── 9. Category Performance (extended) ───────────────────────────
+
+function CategoryPerformanceReport() {
+  const data = categories.map((cat) => {
+    const catProducts = products.filter((p) => p.categoryId === cat.id);
+    const totalValue = catProducts.reduce((s, p) => s + stockValue(p), 0);
+    const avgSellingPrice = catProducts.length > 0
+      ? Math.round(catProducts.reduce((s, p) => s + p.sellingPrice, 0) / catProducts.length)
+      : 0;
+    return {
+      name: cat.name.split(" & ")[0],
+      fullName: cat.name,
+      value: totalValue,
+      count: catProducts.length,
+      avgSellingPrice,
+    };
+  }).sort((a, b) => b.value - a.value);
+
+  function handleExport() {
+    downloadCSV(
+      "category-performance.csv",
+      data.map((d) => [d.fullName, String(d.count), String(d.value), String(d.avgSellingPrice)]),
+      ["Category", "Product Count", "Total Stock Value", "Avg Selling Price"]
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex justify-end">
+        <SecondaryButton icon={Download} onClick={handleExport}>Export CSV</SecondaryButton>
+      </div>
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={data} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+          <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+          <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+          <Tooltip
+            content={({ active, payload, label }) => {
+              if (!active || !payload?.length) return null;
+              return (
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-lg">
+                  <p className="mb-1 text-xs font-semibold text-slate-500">{label}</p>
+                  <p className="text-sm font-bold text-foreground">{fmtINR(payload[0].value as number)}</p>
+                </div>
+              );
+            }}
+          />
+          <Bar dataKey="value" name="Stock Value" fill="#8b5cf6" radius={[5, 5, 0, 0]} maxBarSize={40} />
+        </BarChart>
+      </ResponsiveContainer>
+      <div className="overflow-x-auto rounded-xl border border-slate-200">
+        <table className="w-full min-w-[480px]">
+          <thead>
+            <tr className="border-b border-slate-100 bg-slate-50 text-left">
+              {["Category", "Products", "Total Stock Value", "Avg Selling Price"].map((h) => (
+                <th key={h} className="px-4 py-3 text-xs font-semibold text-muted-foreground">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((d) => (
+              <tr key={d.fullName} className="border-b border-slate-100 hover:bg-slate-50 last:border-0">
+                <td className="px-4 py-3 text-sm font-medium text-foreground">{d.fullName}</td>
+                <td className="px-4 py-3 text-sm text-foreground">{d.count}</td>
+                <td className="px-4 py-3 text-sm font-bold text-foreground">{fmtINR(d.value)}</td>
+                <td className="px-4 py-3 text-sm text-foreground">{fmtINR(d.avgSellingPrice)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── 10. Inventory Aging ───────────────────────────────────────────
+
+// Deterministic "days in stock" per product using product id hash
+function daysInStock(productId: string): number {
+  const base = productId.replace(/\D/g, "");
+  const seed = parseInt(base || "1", 10);
+  return 30 + ((seed * 37 + 13) % 151); // range 30–180
+}
+
+function agingStatus(days: number): { label: string; cls: string } {
+  if (days < 60) return { label: "Fresh", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" };
+  if (days <= 120) return { label: "Aging", cls: "bg-amber-50 text-amber-700 border-amber-200" };
+  return { label: "Dead Stock", cls: "bg-red-50 text-red-700 border-red-200" };
+}
+
+function InventoryAgingReport() {
+  const aged = [...products]
+    .map((p) => ({ product: p, days: daysInStock(p.id) }))
+    .sort((a, b) => b.days - a.days);
+
+  function handleExport() {
+    downloadCSV(
+      "inventory-aging.csv",
+      aged.map(({ product: p, days }) => [
+        p.name,
+        p.sku,
+        String(p.currentStock),
+        String(days),
+        String(stockValue(p)),
+        agingStatus(days).label,
+      ]),
+      ["Product", "SKU", "Current Stock", "Days in Stock", "Stock Value", "Status"]
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex gap-3">
+          {[
+            { label: "Fresh (<60d)", cls: "text-emerald-600", count: aged.filter((x) => x.days < 60).length },
+            { label: "Aging (60–120d)", cls: "text-amber-600", count: aged.filter((x) => x.days >= 60 && x.days <= 120).length },
+            { label: "Dead (>120d)", cls: "text-red-600", count: aged.filter((x) => x.days > 120).length },
+          ].map((s) => (
+            <div key={s.label} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center">
+              <p className={`text-lg font-bold ${s.cls}`}>{s.count}</p>
+              <p className="text-[10px] text-muted-foreground">{s.label}</p>
+            </div>
+          ))}
+        </div>
+        <SecondaryButton icon={Download} onClick={handleExport}>Export CSV</SecondaryButton>
+      </div>
+      <div className="overflow-x-auto rounded-xl border border-slate-200">
+        <table className="w-full min-w-[640px]">
+          <thead>
+            <tr className="border-b border-slate-100 bg-slate-50 text-left">
+              {["Product", "SKU", "Current Stock", "Days in Stock", "Stock Value", "Status"].map((h) => (
+                <th key={h} className="px-4 py-3 text-xs font-semibold text-muted-foreground">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {aged.map(({ product: p, days }) => {
+              const status = agingStatus(days);
+              return (
+                <tr key={p.id} className="border-b border-slate-100 hover:bg-slate-50 last:border-0">
+                  <td className="px-4 py-3">
+                    <p className="text-sm font-semibold text-foreground">{p.name}</p>
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{p.sku}</td>
+                  <td className="px-4 py-3 text-sm text-foreground">{p.currentStock}</td>
+                  <td className="px-4 py-3 text-sm font-bold text-foreground">{days}d</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-foreground">{fmtINR(stockValue(p))}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${status.cls}`}>
+                      {status.label}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Tab ──────────────────────────────────────────────────────
 
 export function ReportsTab() {
@@ -592,6 +915,10 @@ export function ReportsTab() {
         {active === "fast-moving" && <FastMovingReport />}
         {active === "category" && <CategoryReport />}
         {active === "supplier" && <SupplierReport />}
+        {active === "purchase" && <PurchaseReport />}
+        {active === "supplier-report" && <SupplierDetailReport />}
+        {active === "category-performance" && <CategoryPerformanceReport />}
+        {active === "inventory-aging" && <InventoryAgingReport />}
       </motion.div>
     </SectionCard>
   );
