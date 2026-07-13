@@ -1,30 +1,111 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Receipt, Plus, ArrowRight } from "lucide-react";
+import { useState } from "react";
+import {
+  LayoutGrid,
+  FileText,
+  FileSpreadsheet,
+  Undo2,
+  Repeat,
+  Wallet,
+  Palette,
+  Settings,
+} from "lucide-react";
+
+import { OverviewTab } from "../../../components/billing/tabs/OverviewTab";
+import { InvoicesTab } from "../../../components/billing/tabs/InvoicesTab";
+import { QuotationsTab } from "../../../components/billing/tabs/QuotationsTab";
+import { CreditNotesTab } from "../../../components/billing/tabs/CreditNotesTab";
+import { RecurringTab } from "../../../components/billing/tabs/RecurringTab";
+import { PaymentsTab } from "../../../components/billing/tabs/PaymentsTab";
+import { TemplatesTab } from "../../../components/billing/tabs/TemplatesTab";
+import { SettingsTab } from "../../../components/billing/tabs/SettingsTab";
 
 export const Route = createFileRoute("/_authenticated/_app/billing")({
   component: BillingPage,
 });
 
+// ── Sub-navigation ────────────────────────────────────────────────
+
+type TabId =
+  | "overview"
+  | "invoices"
+  | "quotations"
+  | "credit-notes"
+  | "recurring"
+  | "payments"
+  | "templates"
+  | "settings";
+
+interface BillingNavItem {
+  id: TabId;
+  label: string;
+  icon: React.ElementType;
+}
+
+const navItems: BillingNavItem[] = [
+  { id: "overview", label: "Overview", icon: LayoutGrid },
+  { id: "invoices", label: "Invoices", icon: FileText },
+  { id: "quotations", label: "Quotations", icon: FileSpreadsheet },
+  { id: "credit-notes", label: "Credit Notes", icon: Undo2 },
+  { id: "recurring", label: "Recurring", icon: Repeat },
+  { id: "payments", label: "Payments", icon: Wallet },
+  { id: "templates", label: "Templates", icon: Palette },
+  { id: "settings", label: "Settings", icon: Settings },
+];
+
 function BillingPage() {
+  const [activeTab, setActiveTab] = useState<TabId>("overview");
+
   return (
-    <div className="flex min-h-full items-center justify-center p-8">
-      <div className="max-w-md text-center">
-        <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-blue-50">
-          <Receipt className="h-9 w-9 text-blue-600" />
+    <div className="min-h-full px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1400px] space-y-6">
+        {/* Page Header */}
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">GST Billing</h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Invoices, quotations, credit notes, and payments — GST-ready and built for Indian
+              businesses.
+            </p>
+          </div>
         </div>
-        <h1 className="text-2xl font-bold text-foreground">GST Billing</h1>
-        <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
-          Create GST-compliant invoices, track payments, manage credit notes, and generate e-invoices. Coming soon.
-        </p>
-        <div className="mt-8 grid grid-cols-2 gap-3 text-left">
-          {["GST Invoices","Credit Notes","Payment Tracking","E-Invoice (IRN)","Recurring Bills","Bulk Export"].map(f => (
-            <div key={f} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-medium text-foreground">
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />{f}
-            </div>
-          ))}
+
+        {/* Sub-navigation */}
+        <div className="rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
+          <div className="flex gap-1 overflow-x-auto scrollbar-none">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-medium transition-all duration-150 ${
+                    active
+                      ? "bg-[image:var(--gradient-brand)] text-white shadow-[0_4px_16px_-4px_oklch(0.62_0.22_258/0.45)]"
+                      : "text-muted-foreground hover:bg-slate-100 hover:text-foreground"
+                  }`}
+                >
+                  <Icon className={`h-4 w-4 shrink-0 ${active ? "text-white" : ""}`} />
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
-        <div className="mt-6 flex items-center justify-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-medium text-amber-700">
-          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> Coming soon — in active development
+
+        {/* Active tab content */}
+        <div>
+          {activeTab === "overview" && (
+            <OverviewTab onNavigate={(id) => setActiveTab(id as TabId)} />
+          )}
+          {activeTab === "invoices" && <InvoicesTab />}
+          {activeTab === "quotations" && <QuotationsTab />}
+          {activeTab === "credit-notes" && <CreditNotesTab />}
+          {activeTab === "recurring" && <RecurringTab />}
+          {activeTab === "payments" && <PaymentsTab />}
+          {activeTab === "templates" && <TemplatesTab />}
+          {activeTab === "settings" && <SettingsTab />}
         </div>
       </div>
     </div>

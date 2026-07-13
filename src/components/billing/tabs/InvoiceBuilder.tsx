@@ -1,0 +1,1358 @@
+// ── Invoice Builder ───────────────────────────────────────────────
+import { useState, useMemo } from "react";
+import { motion } from "framer-motion";
+import {
+  Plus,
+  Trash2,
+  Copy,
+  Scan,
+  FileText,
+  Printer,
+  Download,
+  Eye,
+  EyeOff,
+  Building2,
+  User,
+  ChevronDown,
+  X,
+} from "lucide-react";
+import {
+  customers,
+  company,
+  paymentModeLabels,
+  computeDocumentTotals,
+  computeLineItem,
+  nextInvoiceNumber,
+  fmtINR,
+  fmtDate,
+  type Invoice,
+  type InvoiceItem,
+  type InvoiceStatus,
+  type PaymentMode,
+  type PaymentStatus,
+  type Customer,
+} from "@/lib/billing-data";
+import { products, units, type Product } from "@/lib/inventory-data";
+import { SectionCard, PrimaryButton, SecondaryButton } from "@/components/billing/shared";
+
+// ── Types ──────────────────────────────────────────────────────────
+
+interface BuilderLineItem {
+  id: string;
+  productId: string;
+  productName: string;
+  barcode: string;
+  hsnCode: string;
+  quantity: number;
+  unitId: string;
+  unitPrice: number;
+  discountPercent: number;
+  gstPercent: number;
+}
+
+interface NewCustomerForm {
+  name: string;
+  contactPerson: string;
+  gstin: string;
+  phone: string;
+  email: string;
+  address: string;
+  city: string;
+  state: string;
+}
+
+// ── Helpers ────────────────────────────────────────────────────────
+
+const TODAY = "2026-07-13";
+
+function emptyLine(): BuilderLineItem {
+  const p = products[0];
+  return {
+    id: "li-" + Date.now() + Math.random(),
+    productId: p.id,
+    productName: p.name,
+    barcode: p.barcode,
+    hsnCode: p.hsnCode,
+    quantity: 1,
+    unitId: p.unitId,
+    unitPrice: p.sellingPrice,
+    discountPercent: 0,
+    gstPercent: p.taxPercent,
+  };
+}
+
+function lineFromProduct(p: Product): BuilderLineItem {
+  return {
+    id: "li-" + Date.now() + Math.random(),
+    productId: p.id,
+    productName: p.name,
+    barcode: p.barcode,
+    hsnCode: p.hsnCode,
+    quantity: 1,
+    unitId: p.unitId,
+    unitPrice: p.sellingPrice,
+    discountPercent: 0,
+    gstPercent: p.taxPercent,
+  };
+}
+
+function lineToInvoiceItem(li: BuilderLineItem): InvoiceItem {
+  return {
+    productId: li.productId,
+    quantity: li.quantity,
+    unitPrice: li.unitPrice,
+    discountPercent: li.discountPercent,
+    gstPercent: li.gstPercent,
+  };
+}
+
+const inputCls =
+  "h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition-colors focus:border-[color:var(--brand-electric)] focus:ring-1 focus:ring-[color:var(--brand-electric)] placeholder:text-slate-400";
+const labelCls = "mb-1 block text-xs font-medium text-slate-600";
+const textareaCls =
+  "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-[color:var(--brand-electric)] focus:ring-1 focus:ring-[color:var(--brand-electric)] placeholder:text-slate-400 resize-none";
+
+const INDIAN_STATES = [
+  "Andhra Pradesh",
+  "Arunachal Pradesh",
+  "Assam",
+  "Bihar",
+  "Chhattisgarh",
+  "Goa",
+  "Gujarat",
+  "Haryana",
+  "Himachal Pradesh",
+  "Jharkhand",
+  "Karnataka",
+  "Kerala",
+  "Madhya Pradesh",
+  "Maharashtra",
+  "Manipur",
+  "Meghalaya",
+  "Mizoram",
+  "Nagaland",
+  "Odisha",
+  "Punjab",
+  "Rajasthan",
+  "Sikkim",
+  "Tamil Nadu",
+  "Telangana",
+  "Tripura",
+  "Uttar Pradesh",
+  "Uttarakhand",
+  "West Bengal",
+  "Delhi",
+  "Jammu & Kashmir",
+  "Ladakh",
+  "Puducherry",
+];
+
+// ── InvoiceBuilder ─────────────────────────────────────────────────
+
+export function InvoiceBuilder({
+  mode,
+  invoice,
+  onSave,
+  onCancel,
+}: {
+  mode: "create" | "edit";
+  invoice?: Invoice;
+  onSave: (invoice: Invoice) => void;
+  onCancel: () => void;
+}) {
+  // ── Customer section ─────────────────────────────────────────────
+  const [customerMode, setCustomerMode] = useState<"existing" | "new">(
+    invoice ? "existing" : "existing",
+  );
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>(
+    invoice?.customerId ?? customers[0].id,
+  );
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [newCustomer, setNewCustomer] = useState<NewCustomerForm>({
+    name: "",
+    contactPerson: "",
+    gstin: "",
+    phone: "",
+    email: "",
+    address: "",
+    city: "",
+    state: "Karnataka",
+  });
+
+  // ── Invoice details ──────────────────────────────────────────────
+  const [invoiceNumber] = useState(
+    mode === "edit" && invoice ? invoice.invoiceNumber : nextInvoiceNumber(),
+  );
+  const [createdDate, setCreatedDate] = useState(invoice?.createdDate ?? TODAY);
+  const [dueDate, setDueDate] = useState(invoice?.dueDate ?? "2026-07-23");
+  const [placeOfSupply, setPlaceOfSupply] = useState(invoice?.placeOfSupply ?? "Karnataka");
+  const [isInterState, setIsInterState] = useState(invoice?.isInterState ?? false);
+
+  // ── Line items ───────────────────────────────────────────────────
+  const [lineItems, setLineItems] = useState<BuilderLineItem[]>(() => {
+    if (invoice && invoice.items.length > 0) {
+      return invoice.items.map((item) => {
+        const p = products.find((pr) => pr.id === item.productId);
+        return {
+          id: "li-" + Math.random(),
+          productId: item.productId,
+          productName: p?.name ?? item.productId,
+          barcode: p?.barcode ?? "",
+          hsnCode: p?.hsnCode ?? "",
+          quantity: item.quantity,
+          unitId: p?.unitId ?? "u1",
+          unitPrice: item.unitPrice,
+          discountPercent: item.discountPercent,
+          gstPercent: item.gstPercent,
+        };
+      });
+    }
+    return [emptyLine()];
+  });
+  const [productSearches, setProductSearches] = useState<Record<string, string>>({});
+  const [productDropdownOpen, setProductDropdownOpen] = useState<string | null>(null);
+
+  // ── Payment ──────────────────────────────────────────────────────
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>(invoice?.paymentMode ?? "upi");
+  const [status, setStatus] = useState<InvoiceStatus>(invoice?.status ?? "draft");
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>(
+    invoice?.paymentStatus ?? "pending",
+  );
+  const [amountPaid, setAmountPaid] = useState(invoice?.amountPaid ?? 0);
+
+  // ── Notes / Terms ────────────────────────────────────────────────
+  const [notes, setNotes] = useState(invoice?.notes ?? "");
+  const [terms, setTerms] = useState(
+    invoice?.terms ??
+      "Payment is due within 10 days from the invoice date. Late payments are subject to a 1.5% monthly interest charge. Goods once sold will not be taken back without prior approval. All disputes are subject to Bengaluru jurisdiction.",
+  );
+
+  // ── Preview / UI state ───────────────────────────────────────────
+  const [showPreview, setShowPreview] = useState(false);
+  const [barcodeToast, setBarcodeToast] = useState(false);
+
+  // ── Derived ──────────────────────────────────────────────────────
+  const selectedCustomer: Customer | undefined =
+    customerMode === "existing" ? customers.find((c) => c.id === selectedCustomerId) : undefined;
+
+  const filteredCustomers = useMemo(() => {
+    const q = customerSearch.toLowerCase();
+    return customers.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.gstin.toLowerCase().includes(q) ||
+        c.contactPerson.toLowerCase().includes(q),
+    );
+  }, [customerSearch]);
+
+  const invoiceItems = lineItems.map(lineToInvoiceItem);
+  const totals = computeDocumentTotals(invoiceItems, isInterState);
+  const balance = totals.grandTotal - amountPaid;
+
+  // ── Line item helpers ────────────────────────────────────────────
+  function updateLine<K extends keyof BuilderLineItem>(
+    id: string,
+    key: K,
+    value: BuilderLineItem[K],
+  ) {
+    setLineItems((prev) => prev.map((li) => (li.id === id ? { ...li, [key]: value } : li)));
+  }
+
+  function selectProductForLine(lineId: string, p: Product) {
+    setLineItems((prev) =>
+      prev.map((li) =>
+        li.id === lineId
+          ? {
+              ...li,
+              productId: p.id,
+              productName: p.name,
+              barcode: p.barcode,
+              hsnCode: p.hsnCode,
+              unitId: p.unitId,
+              unitPrice: p.sellingPrice,
+              gstPercent: p.taxPercent,
+            }
+          : li,
+      ),
+    );
+    setProductSearches((prev) => ({ ...prev, [lineId]: p.name }));
+    setProductDropdownOpen(null);
+  }
+
+  function addLine() {
+    setLineItems((prev) => [...prev, emptyLine()]);
+  }
+
+  function removeLine(id: string) {
+    if (lineItems.length === 1) return;
+    setLineItems((prev) => prev.filter((li) => li.id !== id));
+  }
+
+  function duplicateLine(id: string) {
+    const idx = lineItems.findIndex((li) => li.id === id);
+    if (idx === -1) return;
+    const copy = { ...lineItems[idx], id: "li-" + Date.now() + Math.random() };
+    setLineItems((prev) => [...prev.slice(0, idx + 1), copy, ...prev.slice(idx + 1)]);
+  }
+
+  function handleScanBarcode() {
+    setBarcodeToast(true);
+    setTimeout(() => setBarcodeToast(false), 2500);
+  }
+
+  // ── Build Invoice ────────────────────────────────────────────────
+  function buildInvoice(): Invoice {
+    const id = mode === "edit" && invoice ? invoice.id : "inv-" + Date.now();
+    const custId = customerMode === "existing" ? selectedCustomerId : "new-" + Date.now();
+    return {
+      id,
+      invoiceNumber,
+      customerId: custId,
+      status,
+      paymentStatus,
+      paymentMode,
+      items: invoiceItems,
+      createdDate,
+      dueDate,
+      amountPaid,
+      notes,
+      terms,
+      placeOfSupply,
+      isInterState,
+    };
+  }
+
+  function handleSaveDraft() {
+    onSave({ ...buildInvoice(), status: "draft" });
+  }
+
+  function handleSaveInvoice() {
+    onSave(buildInvoice());
+  }
+
+  function handleGeneratePDF() {
+    alert(
+      "PDF generation would be triggered here. In production, this would render the invoice to a PDF file using a server-side or client-side PDF library.",
+    );
+  }
+
+  function handlePrint() {
+    window.print();
+  }
+
+  // ── Preview render ────────────────────────────────────────────────
+  if (showPreview) {
+    const custName =
+      customerMode === "existing" ? (selectedCustomer?.name ?? "—") : newCustomer.name || "—";
+    const custGstin =
+      customerMode === "existing" ? (selectedCustomer?.gstin ?? "—") : newCustomer.gstin || "—";
+    const custAddress =
+      customerMode === "existing" ? (selectedCustomer?.address ?? "—") : newCustomer.address || "—";
+
+    return (
+      <div className="flex flex-col gap-4">
+        {/* Preview toolbar */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowPreview(false)}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-slate-50"
+          >
+            <EyeOff className="h-4 w-4" /> Hide Preview
+          </button>
+          <button
+            onClick={handlePrint}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-slate-50"
+          >
+            <Printer className="h-4 w-4" /> Print
+          </button>
+          <button
+            onClick={handleGeneratePDF}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-slate-50"
+          >
+            <Download className="h-4 w-4" /> Generate PDF
+          </button>
+        </div>
+
+        {/* A4 preview */}
+        <div className="mx-auto w-full max-w-3xl rounded-2xl border border-slate-200 bg-white shadow-sm print:shadow-none">
+          {/* Header band */}
+          <div className="rounded-t-2xl bg-[image:var(--gradient-brand)] px-8 py-6 text-white">
+            <div className="flex items-start justify-between">
+              <div>
+                <h1 className="text-2xl font-bold">{company.name}</h1>
+                <p className="mt-1 text-sm opacity-80">{company.address}</p>
+                <p className="text-sm opacity-80">
+                  {company.phone} · {company.email}
+                </p>
+                <p className="mt-1 text-xs font-semibold opacity-70">GSTIN: {company.gstin}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-3xl font-black tracking-tight">INVOICE</p>
+                <p className="mt-1 font-mono text-sm opacity-90">{invoiceNumber}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="px-8 py-6 space-y-6">
+            {/* Bill To + Dates */}
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
+                  Bill To
+                </p>
+                <p className="font-bold text-slate-800">{custName}</p>
+                {custGstin !== "—" && <p className="text-xs text-slate-500">GSTIN: {custGstin}</p>}
+                <p className="text-sm text-slate-600 mt-1">{custAddress}</p>
+              </div>
+              <div className="text-right">
+                <div className="space-y-1">
+                  <div>
+                    <span className="text-xs text-slate-400">Invoice Date: </span>
+                    <span className="text-sm font-semibold text-slate-700">
+                      {fmtDate(createdDate)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-slate-400">Due Date: </span>
+                    <span className="text-sm font-semibold text-slate-700">{fmtDate(dueDate)}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-slate-400">Place of Supply: </span>
+                    <span className="text-sm font-semibold text-slate-700">{placeOfSupply}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-slate-400">Supply Type: </span>
+                    <span className="text-sm font-semibold text-slate-700">
+                      {isInterState ? "Inter-State" : "Intra-State"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Items table */}
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    {["#", "Item & HSN", "Qty", "Unit Price", "Disc%", "GST%", "Total"].map((h) => (
+                      <th
+                        key={h}
+                        className="px-3 py-2 text-left text-[11px] font-semibold text-slate-500"
+                      >
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {lineItems.map((li, i) => {
+                    const computed = computeLineItem(lineToInvoiceItem(li));
+                    return (
+                      <tr key={li.id} className="border-b border-slate-100">
+                        <td className="px-3 py-2 text-slate-400 text-xs">{i + 1}</td>
+                        <td className="px-3 py-2">
+                          <p className="font-medium text-slate-800">{li.productName}</p>
+                          <p className="text-[11px] text-slate-400">HSN: {li.hsnCode}</p>
+                        </td>
+                        <td className="px-3 py-2 text-slate-700">{li.quantity}</td>
+                        <td className="px-3 py-2 text-slate-700">{fmtINR(li.unitPrice)}</td>
+                        <td className="px-3 py-2 text-slate-700">{li.discountPercent}%</td>
+                        <td className="px-3 py-2 text-slate-700">{li.gstPercent}%</td>
+                        <td className="px-3 py-2 font-semibold text-slate-800">
+                          {fmtINR(computed.total)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Totals */}
+            <div className="flex justify-end">
+              <div className="w-72 space-y-1.5">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Subtotal</span>
+                  <span className="font-medium text-slate-700">{fmtINR(totals.subtotal)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Discount</span>
+                  <span className="font-medium text-red-600">-{fmtINR(totals.totalDiscount)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Taxable Value</span>
+                  <span className="font-medium text-slate-700">{fmtINR(totals.taxableValue)}</span>
+                </div>
+                {isInterState ? (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">IGST</span>
+                    <span className="font-medium text-slate-700">{fmtINR(totals.igst)}</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-500">CGST</span>
+                      <span className="font-medium text-slate-700">{fmtINR(totals.cgst)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-500">SGST</span>
+                      <span className="font-medium text-slate-700">{fmtINR(totals.sgst)}</span>
+                    </div>
+                  </>
+                )}
+                {totals.roundOff !== 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Round Off</span>
+                    <span className="font-medium text-slate-700">
+                      {totals.roundOff > 0 ? "+" : ""}
+                      {fmtINR(totals.roundOff)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-bold">
+                  <span className="text-slate-800">Grand Total</span>
+                  <span className="text-foreground">{fmtINR(totals.grandTotal)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Amount Paid</span>
+                  <span className="font-medium text-emerald-600">{fmtINR(amountPaid)}</span>
+                </div>
+                <div className="flex justify-between text-sm font-semibold">
+                  <span className="text-slate-700">Balance Due</span>
+                  <span className={balance > 0 ? "text-red-600" : "text-emerald-600"}>
+                    {fmtINR(balance)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Bank details */}
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-sm">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
+                Bank Details
+              </p>
+              <p className="text-slate-700">
+                {company.bankName} · A/C: {company.accountNumber} · IFSC: {company.ifsc}
+              </p>
+            </div>
+
+            {/* Notes + Terms */}
+            {notes && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
+                  Notes
+                </p>
+                <p className="text-sm text-slate-600">{notes}</p>
+              </div>
+            )}
+            {terms && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">
+                  Terms & Conditions
+                </p>
+                <p className="text-xs text-slate-500">{terms}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Main builder form ─────────────────────────────────────────────
+  return (
+    <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+      {/* Barcode toast */}
+      {barcodeToast && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-lg text-sm text-slate-700">
+          <Scan className="h-4 w-4 text-slate-400" />
+          Barcode scanning requires a physical scanner device. Connect a USB barcode scanner to use
+          this feature.
+        </div>
+      )}
+
+      {/* Left: Main form */}
+      <div className="flex-1 min-w-0 space-y-5">
+        {/* ── Customer Information ── */}
+        <SectionCard title="Customer Information">
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setCustomerMode("existing")}
+              className={`flex-1 rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${
+                customerMode === "existing"
+                  ? "border-[color:var(--brand-electric)] bg-blue-50 text-blue-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              <User className="h-3.5 w-3.5 inline mr-1.5" />
+              Existing Customer
+            </button>
+            <button
+              onClick={() => setCustomerMode("new")}
+              className={`flex-1 rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${
+                customerMode === "new"
+                  ? "border-[color:var(--brand-electric)] bg-blue-50 text-blue-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              <Plus className="h-3.5 w-3.5 inline mr-1.5" />
+              New Customer
+            </button>
+          </div>
+
+          {customerMode === "existing" ? (
+            <div className="space-y-3">
+              {/* Customer search */}
+              <div className="relative">
+                <label className={labelCls}>Select Customer</label>
+                <div className="relative">
+                  <input
+                    value={showCustomerDropdown ? customerSearch : (selectedCustomer?.name ?? "")}
+                    onChange={(e) => {
+                      setCustomerSearch(e.target.value);
+                      setShowCustomerDropdown(true);
+                    }}
+                    onFocus={() => setShowCustomerDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 150)}
+                    placeholder="Search customer name or GSTIN..."
+                    className={inputCls}
+                  />
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                </div>
+                {showCustomerDropdown && filteredCustomers.length > 0 && (
+                  <div className="absolute z-20 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-lg max-h-52 overflow-y-auto">
+                    {filteredCustomers.map((c) => (
+                      <button
+                        key={c.id}
+                        className="w-full px-4 py-2.5 text-left hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0"
+                        onMouseDown={() => {
+                          setSelectedCustomerId(c.id);
+                          setCustomerSearch("");
+                          setShowCustomerDropdown(false);
+                        }}
+                      >
+                        <p className="text-sm font-semibold text-slate-800">{c.name}</p>
+                        <p className="text-xs text-slate-400">
+                          {c.gstin} · {c.city}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Selected customer details */}
+              {selectedCustomer && (
+                <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      Contact Person
+                    </p>
+                    <p className="text-sm text-slate-700">{selectedCustomer.contactPerson}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      GSTIN
+                    </p>
+                    <p className="text-sm font-mono text-slate-700">{selectedCustomer.gstin}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      Phone
+                    </p>
+                    <p className="text-sm text-slate-700">{selectedCustomer.phone}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      Email
+                    </p>
+                    <p className="text-sm text-slate-700">{selectedCustomer.email}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      Billing Address
+                    </p>
+                    <p className="text-sm text-slate-700">{selectedCustomer.address}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Business Name *</label>
+                <input
+                  value={newCustomer.name}
+                  onChange={(e) => setNewCustomer((p) => ({ ...p, name: e.target.value }))}
+                  placeholder="e.g. Sharma Enterprises"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Contact Person</label>
+                <input
+                  value={newCustomer.contactPerson}
+                  onChange={(e) => setNewCustomer((p) => ({ ...p, contactPerson: e.target.value }))}
+                  placeholder="e.g. Rahul Sharma"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>GSTIN</label>
+                <input
+                  value={newCustomer.gstin}
+                  onChange={(e) => setNewCustomer((p) => ({ ...p, gstin: e.target.value }))}
+                  placeholder="e.g. 29AABCU9603R1ZM"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Phone</label>
+                <input
+                  value={newCustomer.phone}
+                  onChange={(e) => setNewCustomer((p) => ({ ...p, phone: e.target.value }))}
+                  placeholder="+91 98XXXXXXXX"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Email</label>
+                <input
+                  value={newCustomer.email}
+                  onChange={(e) => setNewCustomer((p) => ({ ...p, email: e.target.value }))}
+                  placeholder="contact@business.in"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>City</label>
+                <input
+                  value={newCustomer.city}
+                  onChange={(e) => setNewCustomer((p) => ({ ...p, city: e.target.value }))}
+                  placeholder="e.g. Bengaluru"
+                  className={inputCls}
+                />
+              </div>
+              <div className="col-span-2">
+                <label className={labelCls}>Address</label>
+                <input
+                  value={newCustomer.address}
+                  onChange={(e) => setNewCustomer((p) => ({ ...p, address: e.target.value }))}
+                  placeholder="Full billing address"
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>State</label>
+                <select
+                  value={newCustomer.state}
+                  onChange={(e) => setNewCustomer((p) => ({ ...p, state: e.target.value }))}
+                  className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-foreground outline-none transition-colors focus:border-[color:var(--brand-electric)] focus:ring-1 focus:ring-[color:var(--brand-electric)]"
+                >
+                  {INDIAN_STATES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+        </SectionCard>
+
+        {/* ── Business Information ── */}
+        <SectionCard title="Business Information (Issuer)">
+          <div className="grid grid-cols-2 gap-3 rounded-xl border border-slate-100 bg-slate-50 p-4">
+            <div className="col-span-2 flex items-center gap-2 mb-1">
+              <Building2 className="h-4 w-4 text-slate-400" />
+              <p className="font-semibold text-slate-800">{company.name}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                GSTIN
+              </p>
+              <p className="text-sm font-mono text-slate-700">{company.gstin}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                State
+              </p>
+              <p className="text-sm text-slate-700">{company.state}</p>
+            </div>
+            <div className="col-span-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Address
+              </p>
+              <p className="text-sm text-slate-700">{company.address}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Phone
+              </p>
+              <p className="text-sm text-slate-700">{company.phone}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Email
+              </p>
+              <p className="text-sm text-slate-700">{company.email}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Bank
+              </p>
+              <p className="text-sm text-slate-700">{company.bankName}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                IFSC
+              </p>
+              <p className="text-sm font-mono text-slate-700">{company.ifsc}</p>
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* ── Invoice Details ── */}
+        <SectionCard title="Invoice Details">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Invoice Number</label>
+              <input
+                value={invoiceNumber}
+                readOnly
+                className={`${inputCls} bg-slate-50 cursor-not-allowed`}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Invoice Date</label>
+              <input
+                type="date"
+                value={createdDate}
+                onChange={(e) => setCreatedDate(e.target.value)}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Due Date</label>
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Place of Supply</label>
+              <select
+                value={placeOfSupply}
+                onChange={(e) => setPlaceOfSupply(e.target.value)}
+                className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-foreground outline-none transition-colors focus:border-[color:var(--brand-electric)] focus:ring-1 focus:ring-[color:var(--brand-electric)]"
+              >
+                {INDIAN_STATES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Invoice Status</label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as InvoiceStatus)}
+                className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-foreground outline-none transition-colors focus:border-[color:var(--brand-electric)] focus:ring-1 focus:ring-[color:var(--brand-electric)]"
+              >
+                <option value="draft">Draft</option>
+                <option value="sent">Sent</option>
+                <option value="paid">Paid</option>
+                <option value="partial">Partial</option>
+                <option value="overdue">Overdue</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-3 pt-5">
+              <label className="relative inline-flex cursor-pointer items-center gap-2">
+                <div
+                  onClick={() => setIsInterState((v) => !v)}
+                  className={`relative h-5 w-9 rounded-full transition-colors ${
+                    isInterState ? "bg-blue-600" : "bg-slate-200"
+                  }`}
+                >
+                  <div
+                    className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                      isInterState ? "translate-x-4" : "translate-x-0.5"
+                    }`}
+                  />
+                </div>
+                <span className="text-sm text-slate-600">
+                  {isInterState ? "Inter-State (IGST)" : "Intra-State (CGST+SGST)"}
+                </span>
+              </label>
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* ── Invoice Items ── */}
+        <SectionCard
+          title="Invoice Items"
+          action={
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleScanBarcode}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                <Scan className="h-3.5 w-3.5" /> Scan Barcode
+              </button>
+              <button
+                onClick={addLine}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[image:var(--gradient-brand)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:shadow-md transition-all"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add Item
+              </button>
+            </div>
+          }
+          noPadding
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/60">
+                  {[
+                    "Product",
+                    "Barcode",
+                    "HSN/SAC",
+                    "Qty",
+                    "Unit",
+                    "Price (₹)",
+                    "Disc%",
+                    "GST%",
+                    "Total",
+                    "",
+                  ].map((h) => (
+                    <th
+                      key={h}
+                      className="px-3 py-2 text-left text-[11px] font-semibold text-slate-500 whitespace-nowrap"
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {lineItems.map((li) => {
+                  const computed = computeLineItem(lineToInvoiceItem(li));
+                  const unit = units.find((u) => u.id === li.unitId);
+                  const filteredProducts = products.filter((p) => {
+                    const q = (productSearches[li.id] ?? "").toLowerCase();
+                    return (
+                      !q ||
+                      p.name.toLowerCase().includes(q) ||
+                      p.sku.toLowerCase().includes(q) ||
+                      p.barcode.includes(q)
+                    );
+                  });
+
+                  return (
+                    <tr
+                      key={li.id}
+                      className="border-b border-slate-100 hover:bg-slate-50/40 transition-colors"
+                    >
+                      {/* Product search */}
+                      <td className="px-2 py-1.5 min-w-[180px]">
+                        <div className="relative">
+                          <input
+                            value={
+                              productDropdownOpen === li.id
+                                ? (productSearches[li.id] ?? "")
+                                : li.productName
+                            }
+                            onChange={(e) => {
+                              setProductSearches((prev) => ({ ...prev, [li.id]: e.target.value }));
+                              setProductDropdownOpen(li.id);
+                            }}
+                            onFocus={() => {
+                              setProductSearches((prev) => ({ ...prev, [li.id]: "" }));
+                              setProductDropdownOpen(li.id);
+                            }}
+                            onBlur={() => setTimeout(() => setProductDropdownOpen(null), 150)}
+                            className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs outline-none focus:border-[color:var(--brand-electric)]"
+                          />
+                          {productDropdownOpen === li.id && filteredProducts.length > 0 && (
+                            <div className="absolute z-20 top-9 left-0 w-64 rounded-xl border border-slate-200 bg-white shadow-lg max-h-48 overflow-y-auto">
+                              {filteredProducts.map((p) => (
+                                <button
+                                  key={p.id}
+                                  className="w-full px-3 py-2 text-left hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0"
+                                  onMouseDown={() => selectProductForLine(li.id, p)}
+                                >
+                                  <p className="text-xs font-semibold text-slate-800">{p.name}</p>
+                                  <p className="text-[10px] text-slate-400">
+                                    {p.sku} · ₹{p.sellingPrice.toLocaleString("en-IN")}
+                                  </p>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Barcode (read-only) */}
+                      <td className="px-2 py-1.5">
+                        <span className="block rounded-lg border border-slate-100 bg-slate-50 px-2 py-1.5 font-mono text-[10px] text-slate-500 min-w-[100px]">
+                          {li.barcode || "—"}
+                        </span>
+                      </td>
+
+                      {/* HSN */}
+                      <td className="px-2 py-1.5">
+                        <input
+                          value={li.hsnCode}
+                          onChange={(e) => updateLine(li.id, "hsnCode", e.target.value)}
+                          className="h-8 w-20 rounded-lg border border-slate-200 bg-white px-2 text-xs outline-none focus:border-[color:var(--brand-electric)]"
+                        />
+                      </td>
+
+                      {/* Quantity */}
+                      <td className="px-2 py-1.5">
+                        <input
+                          type="number"
+                          min="1"
+                          value={li.quantity}
+                          onChange={(e) =>
+                            updateLine(li.id, "quantity", Number(e.target.value) || 1)
+                          }
+                          className="h-8 w-16 rounded-lg border border-slate-200 bg-white px-2 text-xs outline-none focus:border-[color:var(--brand-electric)]"
+                        />
+                      </td>
+
+                      {/* Unit */}
+                      <td className="px-2 py-1.5">
+                        <select
+                          value={li.unitId}
+                          onChange={(e) => updateLine(li.id, "unitId", e.target.value)}
+                          className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs outline-none focus:border-[color:var(--brand-electric)]"
+                        >
+                          {units.map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.shortCode}
+                            </option>
+                          ))}
+                        </select>
+                        {unit && (
+                          <span className="ml-1 text-[10px] text-slate-400">{unit.name}</span>
+                        )}
+                      </td>
+
+                      {/* Price */}
+                      <td className="px-2 py-1.5">
+                        <input
+                          type="number"
+                          min="0"
+                          value={li.unitPrice}
+                          onChange={(e) =>
+                            updateLine(li.id, "unitPrice", Number(e.target.value) || 0)
+                          }
+                          className="h-8 w-24 rounded-lg border border-slate-200 bg-white px-2 text-xs outline-none focus:border-[color:var(--brand-electric)]"
+                        />
+                      </td>
+
+                      {/* Discount */}
+                      <td className="px-2 py-1.5">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={li.discountPercent}
+                          onChange={(e) =>
+                            updateLine(li.id, "discountPercent", Number(e.target.value) || 0)
+                          }
+                          className="h-8 w-16 rounded-lg border border-slate-200 bg-white px-2 text-xs outline-none focus:border-[color:var(--brand-electric)]"
+                        />
+                      </td>
+
+                      {/* GST */}
+                      <td className="px-2 py-1.5">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={li.gstPercent}
+                          onChange={(e) =>
+                            updateLine(li.id, "gstPercent", Number(e.target.value) || 0)
+                          }
+                          className="h-8 w-16 rounded-lg border border-slate-200 bg-white px-2 text-xs outline-none focus:border-[color:var(--brand-electric)]"
+                        />
+                      </td>
+
+                      {/* Line total */}
+                      <td className="px-2 py-1.5 font-semibold text-slate-800 text-right whitespace-nowrap">
+                        {fmtINR(computed.total)}
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-2 py-1.5">
+                        <div className="flex items-center gap-0.5">
+                          <button
+                            onClick={() => duplicateLine(li.id)}
+                            title="Duplicate"
+                            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => removeLine(li.id)}
+                            title="Remove"
+                            disabled={lineItems.length === 1}
+                            className="rounded-lg p-1 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-4 py-2">
+            <button
+              onClick={addLine}
+              className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" /> Add another line item
+            </button>
+          </div>
+        </SectionCard>
+
+        {/* ── GST Summary ── */}
+        <SectionCard title="GST Summary">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Subtotal
+              </p>
+              <p className="mt-1 text-sm font-bold text-slate-800">{fmtINR(totals.subtotal)}</p>
+            </div>
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Discount
+              </p>
+              <p className="mt-1 text-sm font-bold text-red-600">-{fmtINR(totals.totalDiscount)}</p>
+            </div>
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Taxable Value
+              </p>
+              <p className="mt-1 text-sm font-bold text-slate-800">{fmtINR(totals.taxableValue)}</p>
+            </div>
+            {isInterState ? (
+              <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-400">
+                  IGST
+                </p>
+                <p className="mt-1 text-sm font-bold text-blue-700">{fmtINR(totals.igst)}</p>
+              </div>
+            ) : (
+              <>
+                <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-400">
+                    CGST
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-blue-700">{fmtINR(totals.cgst)}</p>
+                </div>
+                <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-400">
+                    SGST
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-blue-700">{fmtINR(totals.sgst)}</p>
+                </div>
+              </>
+            )}
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                CESS
+              </p>
+              <p className="mt-1 text-sm font-bold text-slate-800">{fmtINR(totals.cess)}</p>
+            </div>
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Round Off
+              </p>
+              <p className="mt-1 text-sm font-bold text-slate-800">
+                {totals.roundOff > 0 ? "+" : ""}
+                {fmtINR(totals.roundOff)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-500">
+                Grand Total
+              </p>
+              <p className="mt-1 text-base font-black text-emerald-700">
+                {fmtINR(totals.grandTotal)}
+              </p>
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* ── Payment Information ── */}
+        <SectionCard title="Payment Information">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Payment Mode</label>
+              <select
+                value={paymentMode}
+                onChange={(e) => setPaymentMode(e.target.value as PaymentMode)}
+                className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-foreground outline-none transition-colors focus:border-[color:var(--brand-electric)] focus:ring-1 focus:ring-[color:var(--brand-electric)]"
+              >
+                {(Object.entries(paymentModeLabels) as [PaymentMode, string][]).map(
+                  ([key, label]) => (
+                    <option key={key} value={key}>
+                      {label}
+                    </option>
+                  ),
+                )}
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Payment Status</label>
+              <select
+                value={paymentStatus}
+                onChange={(e) => setPaymentStatus(e.target.value as PaymentStatus)}
+                className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-foreground outline-none transition-colors focus:border-[color:var(--brand-electric)] focus:ring-1 focus:ring-[color:var(--brand-electric)]"
+              >
+                <option value="pending">Pending</option>
+                <option value="partial">Partial</option>
+                <option value="paid">Paid</option>
+                <option value="overdue">Overdue</option>
+              </select>
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* ── Notes & Terms ── */}
+        <SectionCard title="Notes & Terms">
+          <div className="space-y-4">
+            <div>
+              <label className={labelCls}>Notes (visible to customer)</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                placeholder="e.g. Thank you for your business. Please retain this invoice for your records."
+                className={textareaCls}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Terms & Conditions</label>
+              <textarea
+                value={terms}
+                onChange={(e) => setTerms(e.target.value)}
+                rows={4}
+                placeholder="Payment terms, return policy, etc."
+                className={textareaCls}
+              />
+            </div>
+          </div>
+        </SectionCard>
+      </div>
+
+      {/* Right: Sticky summary */}
+      <div className="w-full lg:w-80 lg:sticky lg:top-6 space-y-4 shrink-0">
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-5 py-4">
+            <h3 className="text-sm font-semibold text-foreground">Invoice Summary</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">{invoiceNumber}</p>
+          </div>
+          <div className="p-5 space-y-2.5">
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">Subtotal</span>
+              <span className="font-medium text-slate-700">{fmtINR(totals.subtotal)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">Discount</span>
+              <span className="font-medium text-red-500">-{fmtINR(totals.totalDiscount)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-500">{isInterState ? "IGST" : "CGST + SGST"}</span>
+              <span className="font-medium text-slate-700">
+                {isInterState ? fmtINR(totals.igst) : fmtINR(totals.cgst + totals.sgst)}
+              </span>
+            </div>
+            <div className="flex justify-between border-t border-slate-100 pt-2 text-base font-bold">
+              <span className="text-slate-800">Grand Total</span>
+              <span className="text-foreground">{fmtINR(totals.grandTotal)}</span>
+            </div>
+
+            {/* Amount paid input */}
+            <div className="pt-1">
+              <label className="mb-1 block text-xs font-medium text-slate-500">
+                Amount Paid (₹)
+              </label>
+              <input
+                type="number"
+                min="0"
+                max={totals.grandTotal}
+                value={amountPaid}
+                onChange={(e) => setAmountPaid(Number(e.target.value) || 0)}
+                className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition-colors focus:border-[color:var(--brand-electric)] focus:ring-1 focus:ring-[color:var(--brand-electric)]"
+              />
+            </div>
+
+            <div
+              className={`flex justify-between rounded-xl px-3 py-2 text-sm font-semibold ${balance > 0 ? "bg-red-50" : "bg-emerald-50"}`}
+            >
+              <span className={balance > 0 ? "text-red-600" : "text-emerald-600"}>Balance Due</span>
+              <span className={balance > 0 ? "text-red-700" : "text-emerald-700"}>
+                {fmtINR(balance)}
+              </span>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="border-t border-slate-100 px-5 py-4 space-y-2">
+            <button
+              onClick={() => setShowPreview((v) => !v)}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-slate-50"
+            >
+              <Eye className="h-4 w-4" />
+              {showPreview ? "Hide Preview" : "Preview Invoice"}
+            </button>
+            <button
+              onClick={handleGeneratePDF}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-slate-50"
+            >
+              <Download className="h-4 w-4" /> Generate PDF
+            </button>
+            <button
+              onClick={handlePrint}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-slate-50"
+            >
+              <Printer className="h-4 w-4" /> Print
+            </button>
+            <button
+              onClick={handleSaveDraft}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-slate-50"
+            >
+              <FileText className="h-4 w-4" /> Save Draft
+            </button>
+            <button
+              onClick={handleSaveInvoice}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[image:var(--gradient-brand)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5"
+            >
+              Save Invoice
+            </button>
+            <button
+              onClick={onCancel}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50"
+            >
+              <X className="h-4 w-4" /> Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

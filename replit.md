@@ -50,7 +50,7 @@ src/
       _app.tsx                  # App shell (sidebar + topbar) for signed-in pages
       _app/
         dashboard.tsx           # /dashboard (protected, do not modify)
-        billing.tsx             # /billing (protected, "Coming soon" — do not modify)
+        billing.tsx             # /billing (protected) — Billing module, tab shell
         crm.tsx                 # /crm (protected, "Coming soon" — do not modify)
         finance.tsx             # /finance (protected, "Coming soon" — do not modify)
         inventory.tsx           # /inventory (protected) — Inventory Management module, tab shell
@@ -60,6 +60,7 @@ src/
   lib/
     supabase.ts                 # Lazy Supabase client (browser-only, SSR-safe)
     inventory-data.ts           # Mock data + types + helpers for the Inventory module (no backend)
+    billing-data.ts             # Mock data + types + helpers for the Billing module (no backend)
   components/
     Logo.tsx                    # Shared Nexora logo component
     AppSidebar.tsx               # Sidebar nav for signed-in app
@@ -67,6 +68,9 @@ src/
     inventory/
       shared.tsx                 # Shared UI primitives for Inventory tabs (SectionCard, StatTile, StatusPill, etc.)
       tabs/                       # One component per Inventory sub-section (Products, Categories, Suppliers, Purchase Orders, Stock In/Out/Adjustments, Low Stock, Barcode, Reports, Settings, ...)
+    billing/
+      shared.tsx                 # Shared UI primitives for Billing tabs (re-exports inventory shared.tsx atoms + BillingStatusPill, PaymentModeBadge, ModalShell, Checkbox)
+      tabs/                       # One component per Billing sub-section (Overview, Invoices, InvoiceBuilder, InvoiceDetailView, Quotations, Credit Notes, Recurring, Payments, Templates, Settings)
   hooks/                        # React hooks
 ```
 
@@ -92,6 +96,16 @@ Landing page (/)
 - All interactivity (create/edit/delete, search, filter, sort, pagination, CSV export) is client-side React state seeded from the mock data — nothing persists across a page reload, and there are no API/database calls.
 - Follows the same design system as the rest of the app (rounded-2xl white cards, slate borders, brand gradient, recharts, framer-motion) — no new visual language was introduced.
 - Landing page, Auth, Business Setup Wizard, Dashboard, and the Billing module were intentionally left untouched while building this.
+
+## Billing module
+
+`/billing` is a self-contained, mock-data-only module (no backend, no Supabase calls) covering GST invoicing for Indian businesses: Overview, Invoices (list + create/edit builder + view/PDF/thermal-receipt preview), Quotations (list + create + convert-to-invoice), Credit Notes, Recurring Invoices, Payments (history/pending/received/refunds/timeline), Invoice Templates, and Settings — rendered as tabs within a single route.
+
+- All mock data (company profile, customers, invoices, quotations, credit notes, recurring invoices, payments, templates) and helpers (GST/CGST/SGST/IGST calculation, totals, formatting) live in `src/lib/billing-data.ts`. Line items reference the product catalog in `src/lib/inventory-data.ts` for consistency with Inventory. Uses realistic Indian business data (₹ pricing, GST numbers, HSN codes).
+- Shared UI primitives live in `src/components/billing/shared.tsx`, re-exporting the Inventory module's atoms plus billing-specific ones (status pill, payment mode badge, modal shell).
+- Each tab is its own component under `src/components/billing/tabs/`, wired together by the tab shell in `src/routes/_authenticated/_app/billing.tsx`.
+- All interactivity (create/edit/delete, search, filter, sort, pagination, CSV/Excel export, print) is client-side React state seeded from the mock data — nothing persists across a page reload, and there are no API/database calls.
+- Follows the same design system as the rest of the app — no new visual language was introduced.
 
 ## Notes
 
