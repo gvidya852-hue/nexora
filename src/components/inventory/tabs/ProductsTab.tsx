@@ -1,0 +1,732 @@
+// ── Products Tab ──────────────────────────────────────────────────
+import { useState, useMemo, useRef } from "react";
+import { motion } from "framer-motion";
+import {
+  MoreHorizontal,
+  Eye,
+  Pencil,
+  Copy,
+  Archive,
+  Trash2,
+  Download,
+  Upload,
+  Plus,
+  Package,
+} from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  products as seedProducts,
+  categories,
+  brands,
+  units,
+  suppliers,
+  getCategory,
+  getBrand,
+  getUnit,
+  getSupplier,
+  getStockStatus,
+  fmtINR,
+  type Product,
+} from "@/lib/inventory-data";
+import {
+  SectionCard,
+  StatTile as _StatTile,
+  StatusPill,
+  SearchInput,
+  Select,
+  Pagination,
+  PrimaryButton,
+  SecondaryButton,
+  EmptyState,
+} from "@/components/inventory/shared";
+
+// ── Constants ──────────────────────────────────────────────────────
+const PAGE_SIZE = 8;
+
+// ── Helpers ────────────────────────────────────────────────────────
+function genId() {
+  return "p" + Math.random().toString(36).slice(2, 9);
+}
+
+function buildCSV(rows: Product[]): string {
+  const headers = [
+    "SKU", "Name", "Barcode", "Category", "Brand", "Supplier",
+    "Purchase Price", "Selling Price", "Tax %", "HSN Code",
+    "Current Stock", "Min Stock", "Max Stock", "Status", "Description",
+  ];
+  const escape = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+  const lines = [
+    headers.join(","),
+    ...rows.map((p) =>
+      [
+        p.sku, p.name, p.barcode,
+        getCategory(p.categoryId)?.name ?? p.categoryId,
+        getBrand(p.brandId)?.name ?? p.brandId,
+        getSupplier(p.supplierId)?.name ?? p.supplierId,
+        p.purchasePrice, p.sellingPrice, p.taxPercent, p.hsnCode,
+        p.currentStock, p.minStock, p.maxStock, p.status, p.description,
+      ].map(escape).join(",")
+    ),
+  ];
+  return lines.join("\n");
+}
+
+function downloadFile(content: string, filename: string, mime: string) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── ProductForm ────────────────────────────────────────────────────
+type ProductFormData = Omit<Product, "id">;
+
+const EMPTY_FORM: ProductFormData = {
+  name: "", sku: "", barcode: "", categoryId: categories[0]?.id ?? "",
+  brandId: brands[0]?.id ?? "", unitId: units[0]?.id ?? "",
+  supplierId: suppliers[0]?.id ?? "", purchasePrice: 0, sellingPrice: 0,
+  taxPercent: 18, hsnCode: "", currentStock: 0, minStock: 0, maxStock: 0,
+  status: "active", description: "", emoji: "📦",
+};
+
+function ProductForm({
+  initial,
+  isEdit,
+  onSave,
+  onCancel,
+}: {
+  initial: ProductFormData;
+  isEdit: boolean;
+  onSave: (data: ProductFormData) => void;
+  onCancel: () => void;
+}) {
+  const [form, setForm] = useState<ProductFormData>(initial);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  function set<K extends keyof ProductFormData>(key: K, val: ProductFormData[K]) {
+    setForm((f) => ({ ...f, [key]: val }));
+    if (errors[key]) setErrors((e) => ({ ...e, [key]: "" }));
+  }
+
+  function validate() {
+    const e: Record<string, string> = {};
+    if (!form.name.trim()) e.name = "Product name is required";
+    if (!form.sku.trim()) e.sku = "SKU is required";
+    return e;
+  }
+
+  function handleSubmit(ev: React.FormEvent) {
+    ev.preventDefault();
+    const e = validate();
+    if (Object.keys(e).length) { setErrors(e); return; }
+    onSave(form);
+  }
+
+  const inputCls = "h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition-colors focus:border-[color:var(--brand-electric)] focus:ring-1 focus:ring-[color:var(--brand-electric)] placeholder:text-slate-400";
+  const labelCls = "mb-1 block text-xs font-medium text-foreground";
+  const errCls = "mt-0.5 text-[11px] text-red-500";
+  const selectCls = "h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-foreground outline-none transition-colors focus:border-[color:var(--brand-electric)] focus:ring-1 focus:ring-[color:var(--brand-electric)]";
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-0">
+      <div className="max-h-[65vh] overflow-y-auto px-1 py-1">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+          {/* Name */}
+          <div className="col-span-2">
+            <label className={labelCls}>Product Name *</label>
+            <input value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Dell Vostro 15 Laptop" className={inputCls} />
+            {errors.name && <p className={errCls}>{errors.name}</p>}
+          </div>
+          {/* SKU */}
+          <div>
+            <label className={labelCls}>SKU *</label>
+            <input value={form.sku} onChange={(e) => set("sku", e.target.value)} placeholder="e.g. DEL-VOS15-001" className={inputCls} />
+            {errors.sku && <p className={errCls}>{errors.sku}</p>}
+          </div>
+          {/* Barcode */}
+          <div>
+            <label className={labelCls}>Barcode</label>
+            <input value={form.barcode} onChange={(e) => set("barcode", e.target.value)} placeholder="e.g. 8901234500011" className={inputCls} />
+          </div>
+          {/* Emoji */}
+          <div>
+            <label className={labelCls}>Emoji / Icon</label>
+            <input value={form.emoji} onChange={(e) => set("emoji", e.target.value)} placeholder="📦" className={inputCls} />
+          </div>
+          {/* HSN */}
+          <div>
+            <label className={labelCls}>HSN / SAC Code</label>
+            <input value={form.hsnCode} onChange={(e) => set("hsnCode", e.target.value)} placeholder="e.g. 8471" className={inputCls} />
+          </div>
+          {/* Category */}
+          <div>
+            <label className={labelCls}>Category</label>
+            <select value={form.categoryId} onChange={(e) => set("categoryId", e.target.value)} className={selectCls}>
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          {/* Brand */}
+          <div>
+            <label className={labelCls}>Brand</label>
+            <select value={form.brandId} onChange={(e) => set("brandId", e.target.value)} className={selectCls}>
+              {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </div>
+          {/* Unit */}
+          <div>
+            <label className={labelCls}>Unit</label>
+            <select value={form.unitId} onChange={(e) => set("unitId", e.target.value)} className={selectCls}>
+              {units.map((u) => <option key={u.id} value={u.id}>{u.name} ({u.shortCode})</option>)}
+            </select>
+          </div>
+          {/* Supplier */}
+          <div>
+            <label className={labelCls}>Supplier</label>
+            <select value={form.supplierId} onChange={(e) => set("supplierId", e.target.value)} className={selectCls}>
+              {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </div>
+          {/* Purchase Price */}
+          <div>
+            <label className={labelCls}>Purchase Price (₹)</label>
+            <input type="number" min={0} value={form.purchasePrice} onChange={(e) => set("purchasePrice", Number(e.target.value))} className={inputCls} />
+          </div>
+          {/* Selling Price */}
+          <div>
+            <label className={labelCls}>Selling Price (₹)</label>
+            <input type="number" min={0} value={form.sellingPrice} onChange={(e) => set("sellingPrice", Number(e.target.value))} className={inputCls} />
+          </div>
+          {/* Tax */}
+          <div>
+            <label className={labelCls}>Tax %</label>
+            <input type="number" min={0} max={100} value={form.taxPercent} onChange={(e) => set("taxPercent", Number(e.target.value))} className={inputCls} />
+          </div>
+          {/* Status */}
+          <div>
+            <label className={labelCls}>Status</label>
+            <select value={form.status} onChange={(e) => set("status", e.target.value as Product["status"])} className={selectCls}>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="archived">Archived</option>
+            </select>
+          </div>
+          {/* Opening / Current Stock */}
+          <div>
+            <label className={labelCls}>{isEdit ? "Current Stock" : "Opening Stock"}</label>
+            <input type="number" min={0} value={form.currentStock} onChange={(e) => set("currentStock", Number(e.target.value))} className={inputCls} />
+          </div>
+          {/* Min Stock */}
+          <div>
+            <label className={labelCls}>Min Stock Level</label>
+            <input type="number" min={0} value={form.minStock} onChange={(e) => set("minStock", Number(e.target.value))} className={inputCls} />
+          </div>
+          {/* Max Stock */}
+          <div>
+            <label className={labelCls}>Max Stock Level</label>
+            <input type="number" min={0} value={form.maxStock} onChange={(e) => set("maxStock", Number(e.target.value))} className={inputCls} />
+          </div>
+          {/* Description */}
+          <div className="col-span-2">
+            <label className={labelCls}>Description</label>
+            <textarea
+              value={form.description}
+              onChange={(e) => set("description", e.target.value)}
+              rows={2}
+              placeholder="Short product description..."
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition-colors focus:border-[color:var(--brand-electric)] focus:ring-1 focus:ring-[color:var(--brand-electric)] placeholder:text-slate-400 resize-none"
+            />
+          </div>
+          {/* Images placeholder */}
+          <div className="col-span-2">
+            <label className={labelCls}>Images</label>
+            <div className="flex items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3">
+              <Upload className="h-4 w-4 text-slate-400" />
+              <span className="text-xs text-muted-foreground">Drag & drop or click to upload images (coming soon)</span>
+              <input type="file" disabled className="hidden" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="mt-4 flex justify-end gap-2 border-t border-slate-100 pt-4">
+        <button type="button" onClick={onCancel} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-foreground hover:bg-slate-50 transition-colors">
+          Cancel
+        </button>
+        <button type="submit" className="inline-flex items-center gap-2 rounded-xl bg-[image:var(--gradient-brand)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
+          {isEdit ? "Save Changes" : "Add Product"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// ── ProductDetailDialog ────────────────────────────────────────────
+function ProductDetailDialog({
+  product,
+  open,
+  onOpenChange,
+  onEdit,
+}: {
+  product: Product | null;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onEdit: (p: Product) => void;
+}) {
+  if (!product) return null;
+  const cat = getCategory(product.categoryId);
+  const brand = getBrand(product.brandId);
+  const unit = getUnit(product.unitId);
+  const supplier = getSupplier(product.supplierId);
+  const stockStatus = getStockStatus(product);
+
+  const field = (label: string, value: string | number | undefined) => (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="mt-0.5 text-sm text-foreground">{value ?? "—"}</p>
+    </div>
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span className="text-2xl">{product.emoji}</span>
+            {product.name}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="mt-2 flex items-center gap-2">
+          <StatusPill status={product.status} />
+          <StatusPill status={stockStatus} />
+          {cat && <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-medium text-slate-600">{cat.name}</span>}
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-4">
+          {field("SKU", product.sku)}
+          {field("Barcode", product.barcode)}
+          {field("Brand", brand?.name)}
+          {field("Unit", unit ? `${unit.name} (${unit.shortCode})` : undefined)}
+          {field("Supplier", supplier?.name)}
+          {field("HSN / SAC Code", product.hsnCode)}
+          {field("Purchase Price", fmtINR(product.purchasePrice))}
+          {field("Selling Price", fmtINR(product.sellingPrice))}
+          {field("Tax %", `${product.taxPercent}%`)}
+          {field("Current Stock", product.currentStock)}
+          {field("Min Stock Level", product.minStock)}
+          {field("Max Stock Level", product.maxStock)}
+        </div>
+        {product.description && (
+          <div className="mt-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Description</p>
+            <p className="mt-0.5 text-sm text-foreground">{product.description}</p>
+          </div>
+        )}
+        <DialogFooter className="mt-4 flex gap-2">
+          <DialogClose asChild>
+            <button className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-foreground hover:bg-slate-50 transition-colors">
+              Close
+            </button>
+          </DialogClose>
+          <button
+            onClick={() => { onOpenChange(false); onEdit(product); }}
+            className="inline-flex items-center gap-2 rounded-xl bg-[image:var(--gradient-brand)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
+          >
+            <Pencil className="h-4 w-4" /> Edit
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── ProductsTab ────────────────────────────────────────────────────
+export function ProductsTab() {
+  // Local state seeded from imported products (no mutation of import)
+  const [localProducts, setLocalProducts] = useState<Product[]>(() =>
+    seedProducts.map((p) => ({ ...p }))
+  );
+
+  // Toolbar filters
+  const [search, setSearch] = useState("");
+  const [filterCategory, setFilterCategory] = useState("all");
+  const [filterBrand, setFilterBrand] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [sortKey, setSortKey] = useState("name-az");
+
+  // Pagination
+  const [page, setPage] = useState(1);
+
+  // Selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Detail dialog
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  // Create / Edit dialog
+  const [formOpen, setFormOpen] = useState(false);
+  const [formMode, setFormMode] = useState<"create" | "edit">("create");
+  const [formInitial, setFormInitial] = useState<ProductFormData>(EMPTY_FORM);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Derived category/brand options
+  const categoryOptions = [
+    { value: "all", label: "All Categories" },
+    ...categories.map((c) => ({ value: c.id, label: c.name })),
+  ];
+  const brandOptions = [
+    { value: "all", label: "All Brands" },
+    ...brands.map((b) => ({ value: b.id, label: b.name })),
+  ];
+  const statusOptions = [
+    { value: "all", label: "All Status" },
+    { value: "active", label: "Active" },
+    { value: "inactive", label: "Inactive" },
+    { value: "archived", label: "Archived" },
+  ];
+  const sortOptions = [
+    { value: "name-az", label: "Name A–Z" },
+    { value: "name-za", label: "Name Z–A" },
+    { value: "price-high", label: "Price High–Low" },
+    { value: "price-low", label: "Price Low–High" },
+    { value: "stock-high", label: "Stock High–Low" },
+  ];
+
+  // Filtered + sorted products
+  const filtered = useMemo(() => {
+    let rows = localProducts;
+    const q = search.toLowerCase();
+    if (q) rows = rows.filter((p) =>
+      p.name.toLowerCase().includes(q) ||
+      p.sku.toLowerCase().includes(q) ||
+      p.barcode.toLowerCase().includes(q)
+    );
+    if (filterCategory !== "all") rows = rows.filter((p) => p.categoryId === filterCategory);
+    if (filterBrand !== "all") rows = rows.filter((p) => p.brandId === filterBrand);
+    if (filterStatus !== "all") rows = rows.filter((p) => p.status === filterStatus);
+
+    rows = [...rows].sort((a, b) => {
+      if (sortKey === "name-az") return a.name.localeCompare(b.name);
+      if (sortKey === "name-za") return b.name.localeCompare(a.name);
+      if (sortKey === "price-high") return b.sellingPrice - a.sellingPrice;
+      if (sortKey === "price-low") return a.sellingPrice - b.sellingPrice;
+      if (sortKey === "stock-high") return b.currentStock - a.currentStock;
+      return 0;
+    });
+    return rows;
+  }, [localProducts, search, filterCategory, filterBrand, filterStatus, sortKey]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  // Reset page on filter change
+  function handleSearch(v: string) { setSearch(v); setPage(1); }
+  function handleCatFilter(v: string) { setFilterCategory(v); setPage(1); }
+  function handleBrandFilter(v: string) { setFilterBrand(v); setPage(1); }
+  function handleStatusFilter(v: string) { setFilterStatus(v); setPage(1); }
+
+  // Selection helpers
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+  function toggleAll() {
+    if (pageRows.every((r) => selectedIds.has(r.id))) {
+      setSelectedIds((prev) => { const next = new Set(prev); pageRows.forEach((r) => next.delete(r.id)); return next; });
+    } else {
+      setSelectedIds((prev) => { const next = new Set(prev); pageRows.forEach((r) => next.add(r.id)); return next; });
+    }
+  }
+  const allPageSelected = pageRows.length > 0 && pageRows.every((r) => selectedIds.has(r.id));
+  const someSelected = selectedIds.size > 0;
+
+  // CRUD actions
+  function handleDuplicate(product: Product) {
+    const copy: Product = { ...product, id: genId(), name: product.name + " (Copy)", sku: product.sku + "-COPY" };
+    setLocalProducts((prev) => [copy, ...prev]);
+  }
+  function handleArchive(id: string) {
+    setLocalProducts((prev) => prev.map((p) => p.id === id ? { ...p, status: "archived" } : p));
+  }
+  function handleDelete(id: string) {
+    setLocalProducts((prev) => prev.filter((p) => p.id !== id));
+    setSelectedIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+  }
+  function handleBulkArchive() {
+    setLocalProducts((prev) => prev.map((p) => selectedIds.has(p.id) ? { ...p, status: "archived" } : p));
+    setSelectedIds(new Set());
+  }
+  function handleBulkDelete() {
+    setLocalProducts((prev) => prev.filter((p) => !selectedIds.has(p.id)));
+    setSelectedIds(new Set());
+  }
+
+  // Export
+  function handleExportCSV() {
+    const csv = buildCSV(filtered);
+    downloadFile(csv, "products-export.csv", "text/csv;charset=utf-8;");
+  }
+  function handleExportExcel() {
+    // Reuse CSV as TSV-compatible — labeled as Excel
+    const csv = buildCSV(filtered);
+    downloadFile(csv, "products-export.csv", "text/csv;charset=utf-8;");
+  }
+
+  // Open detail
+  function openDetail(p: Product) {
+    setDetailProduct(p);
+    setDetailOpen(true);
+  }
+
+  // Open create form
+  function openCreate() {
+    setFormMode("create");
+    setFormInitial(EMPTY_FORM);
+    setEditingId(null);
+    setFormOpen(true);
+  }
+
+  // Open edit form
+  function openEdit(p: Product) {
+    setFormMode("edit");
+    const { id, ...rest } = p;
+    setFormInitial(rest);
+    setEditingId(id);
+    setFormOpen(true);
+  }
+
+  // Save form
+  function handleFormSave(data: ProductFormData) {
+    if (formMode === "create") {
+      const newProduct: Product = { id: genId(), ...data };
+      setLocalProducts((prev) => [newProduct, ...prev]);
+    } else if (editingId) {
+      setLocalProducts((prev) => prev.map((p) => p.id === editingId ? { id: editingId, ...data } : p));
+    }
+    setFormOpen(false);
+  }
+
+  const uniqueCategories = new Set(localProducts.map((p) => p.categoryId)).size;
+
+  return (
+    <SectionCard
+      title="Products"
+      subtitle={`${localProducts.length} products across ${uniqueCategories} categories`}
+      action={<PrimaryButton icon={Plus} onClick={openCreate}>Add Product</PrimaryButton>}
+      noPadding
+    >
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-6 py-3">
+        <SearchInput
+          value={search}
+          onChange={handleSearch}
+          placeholder="Search by name, SKU, barcode…"
+          className="w-56"
+        />
+        <Select value={filterCategory} onChange={handleCatFilter} options={categoryOptions} className="w-40" />
+        <Select value={filterBrand} onChange={handleBrandFilter} options={brandOptions} className="w-36" />
+        <Select value={filterStatus} onChange={handleStatusFilter} options={statusOptions} className="w-32" />
+        <Select value={sortKey} onChange={setSortKey} options={sortOptions} className="w-40" />
+        <div className="ml-auto flex items-center gap-2">
+          <SecondaryButton icon={Download} onClick={handleExportCSV}>Export CSV</SecondaryButton>
+          <SecondaryButton icon={Download} onClick={handleExportExcel}>Export Excel</SecondaryButton>
+          <SecondaryButton icon={Upload} onClick={() => {}}>Import</SecondaryButton>
+        </div>
+      </div>
+
+      {/* Bulk action bar */}
+      {someSelected && (
+        <motion.div
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-3 border-b border-amber-100 bg-amber-50 px-6 py-2"
+        >
+          <span className="text-xs font-semibold text-amber-700">{selectedIds.size} selected</span>
+          <button onClick={handleBulkArchive} className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-50 transition-colors">
+            <Archive className="h-3.5 w-3.5" /> Archive selected
+          </button>
+          <button onClick={handleBulkDelete} className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors">
+            <Trash2 className="h-3.5 w-3.5" /> Delete selected
+          </button>
+          <button onClick={() => setSelectedIds(new Set())} className="ml-auto text-xs text-muted-foreground hover:text-foreground transition-colors">
+            Clear
+          </button>
+        </motion.div>
+      )}
+
+      {/* Table */}
+      {filtered.length === 0 ? (
+        <EmptyState icon={Package} title="No products found" subtitle="Try adjusting your filters or add a new product." />
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-slate-50/60 hover:bg-slate-50/60">
+              <TableHead className="w-10 pl-6">
+                <Checkbox
+                  checked={allPageSelected}
+                  onCheckedChange={toggleAll}
+                  aria-label="Select all"
+                />
+              </TableHead>
+              <TableHead className="text-xs font-semibold text-muted-foreground">Product</TableHead>
+              <TableHead className="text-xs font-semibold text-muted-foreground">Barcode</TableHead>
+              <TableHead className="text-xs font-semibold text-muted-foreground">Category</TableHead>
+              <TableHead className="text-xs font-semibold text-muted-foreground">Brand</TableHead>
+              <TableHead className="text-xs font-semibold text-muted-foreground">Supplier</TableHead>
+              <TableHead className="text-xs font-semibold text-muted-foreground text-right">Purchase</TableHead>
+              <TableHead className="text-xs font-semibold text-muted-foreground text-right">Selling</TableHead>
+              <TableHead className="text-xs font-semibold text-muted-foreground text-center">Stock</TableHead>
+              <TableHead className="text-xs font-semibold text-muted-foreground text-center">Min</TableHead>
+              <TableHead className="text-xs font-semibold text-muted-foreground text-center">Status</TableHead>
+              <TableHead className="w-10 pr-6" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {pageRows.map((product, i) => {
+              const cat = getCategory(product.categoryId);
+              const brand = getBrand(product.brandId);
+              const supplier = getSupplier(product.supplierId);
+              const stockStatus = getStockStatus(product);
+              const isSelected = selectedIds.has(product.id);
+
+              // Derive icon bg from category color
+              const catColor = cat?.color ?? "bg-slate-100";
+
+              return (
+                <motion.tr
+                  key={product.id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2, delay: i * 0.03 }}
+                  className={`group cursor-pointer border-b border-slate-100 transition-colors hover:bg-slate-50/70 ${isSelected ? "bg-blue-50/50" : ""}`}
+                  onClick={(e) => {
+                    // Don't open detail when clicking checkbox or action column
+                    const target = e.target as HTMLElement;
+                    if (target.closest("[data-no-row-click]")) return;
+                    openDetail(product);
+                  }}
+                >
+                  <TableCell className="pl-6" data-no-row-click>
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={() => toggleSelect(product.id)}
+                      aria-label={`Select ${product.name}`}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-lg ${catColor}`}>
+                        {product.emoji}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-foreground">{product.name}</p>
+                        <p className="text-[11px] text-muted-foreground">{product.sku}</p>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground font-mono">{product.barcode}</TableCell>
+                  <TableCell className="text-xs text-foreground">{cat?.name ?? "—"}</TableCell>
+                  <TableCell className="text-xs text-foreground">{brand?.name ?? "—"}</TableCell>
+                  <TableCell className="max-w-[120px] truncate text-xs text-muted-foreground">{supplier?.name ?? "—"}</TableCell>
+                  <TableCell className="text-right text-xs font-medium text-foreground">{fmtINR(product.purchasePrice)}</TableCell>
+                  <TableCell className="text-right text-xs font-semibold text-foreground">{fmtINR(product.sellingPrice)}</TableCell>
+                  <TableCell className="text-center">
+                    <div className="flex flex-col items-center gap-0.5">
+                      <span className="text-sm font-bold text-foreground">{product.currentStock}</span>
+                      <StatusPill status={stockStatus} />
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-center text-xs text-muted-foreground">{product.minStock}</TableCell>
+                  <TableCell className="text-center">
+                    <StatusPill status={product.status} />
+                  </TableCell>
+                  <TableCell className="pr-4" data-no-row-click>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-slate-100 hover:text-slate-700">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-40">
+                        <DropdownMenuItem onClick={() => openDetail(product)} className="gap-2 text-xs">
+                          <Eye className="h-3.5 w-3.5" /> View
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openEdit(product)} className="gap-2 text-xs">
+                          <Pencil className="h-3.5 w-3.5" /> Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDuplicate(product)} className="gap-2 text-xs">
+                          <Copy className="h-3.5 w-3.5" /> Duplicate
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => handleArchive(product.id)} className="gap-2 text-xs text-amber-600 focus:text-amber-600">
+                          <Archive className="h-3.5 w-3.5" /> Archive
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDelete(product.id)} className="gap-2 text-xs text-red-600 focus:text-red-600">
+                          <Trash2 className="h-3.5 w-3.5" /> Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </motion.tr>
+              );
+            })}
+          </TableBody>
+        </Table>
+      )}
+
+      {/* Pagination */}
+      <Pagination page={safePage} totalPages={totalPages} onChange={setPage} />
+
+      {/* Detail Dialog */}
+      <ProductDetailDialog
+        product={detailProduct}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        onEdit={openEdit}
+      />
+
+      {/* Create / Edit Dialog */}
+      <Dialog open={formOpen} onOpenChange={setFormOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{formMode === "create" ? "Add New Product" : "Edit Product"}</DialogTitle>
+          </DialogHeader>
+          <ProductForm
+            initial={formInitial}
+            isEdit={formMode === "edit"}
+            onSave={handleFormSave}
+            onCancel={() => setFormOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
+    </SectionCard>
+  );
+}

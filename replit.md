@@ -46,14 +46,27 @@ src/
     verify-email.tsx            # /verify-email
     _authenticated.tsx          # Protected layout (redirects to /login if unauthed)
     _authenticated/
-      dashboard.tsx             # /dashboard (protected)
+      onboarding.tsx            # Business setup wizard (protected, do not modify)
+      _app.tsx                  # App shell (sidebar + topbar) for signed-in pages
+      _app/
+        dashboard.tsx           # /dashboard (protected, do not modify)
+        billing.tsx             # /billing (protected, "Coming soon" — do not modify)
+        crm.tsx                 # /crm (protected, "Coming soon" — do not modify)
+        finance.tsx             # /finance (protected, "Coming soon" — do not modify)
+        inventory.tsx           # /inventory (protected) — Inventory Management module, tab shell
   contexts/
     AuthContext.tsx             # AuthProvider, useAuth, useSession hooks
+    BusinessContext.tsx         # BusinessProvider, useBusiness (business record + onboarding state)
   lib/
     supabase.ts                 # Lazy Supabase client (browser-only, SSR-safe)
+    inventory-data.ts           # Mock data + types + helpers for the Inventory module (no backend)
   components/
     Logo.tsx                    # Shared Nexora logo component
+    AppSidebar.tsx               # Sidebar nav for signed-in app
     ui/                         # shadcn/ui components
+    inventory/
+      shared.tsx                 # Shared UI primitives for Inventory tabs (SectionCard, StatTile, StatusPill, etc.)
+      tabs/                       # One component per Inventory sub-section (Products, Categories, Suppliers, Purchase Orders, Stock In/Out/Adjustments, Low Stock, Barcode, Reports, Settings, ...)
   hooks/                        # React hooks
 ```
 
@@ -68,6 +81,17 @@ Landing page (/)
   → Forgot Password (/forgot-password)
     → Reset Password (/reset-password)
 ```
+
+## Inventory Management module
+
+`/inventory` is a self-contained, mock-data-only module (no backend, no Supabase calls) covering 15 sub-sections rendered as tabs within a single route: Overview, Products, Categories, Brands, Units, Suppliers, Purchase Orders, Purchase Bills, Stock In, Stock Out, Stock Adjustments, Low Stock, Barcode Management, Inventory Reports, Inventory Settings.
+
+- All mock data (products, categories, brands, units, suppliers, purchase orders/bills, stock movements) and helpers live in `src/lib/inventory-data.ts`. Uses realistic Indian business data (₹ pricing, GST numbers, SKUs/barcodes).
+- Shared UI primitives (cards, stat tiles, status pills, search/pagination, buttons) live in `src/components/inventory/shared.tsx`.
+- Each tab is its own component under `src/components/inventory/tabs/`, wired together by the tab shell in `src/routes/_authenticated/_app/inventory.tsx`.
+- All interactivity (create/edit/delete, search, filter, sort, pagination, CSV export) is client-side React state seeded from the mock data — nothing persists across a page reload, and there are no API/database calls.
+- Follows the same design system as the rest of the app (rounded-2xl white cards, slate borders, brand gradient, recharts, framer-motion) — no new visual language was introduced.
+- Landing page, Auth, Business Setup Wizard, Dashboard, and the Billing module were intentionally left untouched while building this.
 
 ## Notes
 
