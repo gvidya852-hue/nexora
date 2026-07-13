@@ -43,6 +43,7 @@ export interface Business {
 interface BusinessContextValue {
   business: Business | null;
   businessLoading: boolean;
+  businessError: string | null;
   onboardingCompleted: boolean;
   /** Call this after the wizard marks onboarding done so the guard updates immediately */
   setOnboardingCompleted: (value: boolean) => void;
@@ -57,6 +58,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [business, setBusiness] = useState<Business | null>(null);
   const [businessLoading, setBusinessLoading] = useState(true);
+  const [businessError, setBusinessError] = useState<string | null>(null);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
 
   const fetchBusiness = useCallback(async () => {
@@ -65,14 +67,21 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
       return;
     }
     setBusinessLoading(true);
-    const { data } = await supabase
+    setBusinessError(null);
+    const { data, error } = await supabase
       .from("business")
       .select("*")
       .eq("owner_id", user.id)
       .maybeSingle();
 
-    setBusiness(data ?? null);
-    setOnboardingCompleted(data?.onboarding_completed ?? false);
+    if (error) {
+      // Table may not exist yet (schema not run) — don't block the user
+      setBusinessError(error.message);
+      setOnboardingCompleted(true); // skip wizard if we can't fetch
+    } else {
+      setBusiness(data ?? null);
+      setOnboardingCompleted(data?.onboarding_completed ?? false);
+    }
     setBusinessLoading(false);
   }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -85,6 +94,7 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
       value={{
         business,
         businessLoading,
+        businessError,
         onboardingCompleted,
         setOnboardingCompleted,
         refetchBusiness: fetchBusiness,
