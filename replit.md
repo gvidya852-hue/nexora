@@ -51,7 +51,7 @@ src/
       _app/
         dashboard.tsx           # /dashboard (protected, do not modify)
         billing.tsx             # /billing (protected) — Billing module, tab shell
-        crm.tsx                 # /crm (protected, "Coming soon" — do not modify)
+        crm.tsx                 # /crm (protected) — CRM module, tab shell
         finance.tsx             # /finance (protected, "Coming soon" — do not modify)
         inventory.tsx           # /inventory (protected) — Inventory Management module, tab shell
   contexts/
@@ -61,6 +61,7 @@ src/
     supabase.ts                 # Lazy Supabase client (browser-only, SSR-safe)
     inventory-data.ts           # Mock data + types + helpers for the Inventory module (no backend)
     billing-data.ts             # Mock data + types + helpers for the Billing module (no backend)
+    crm-data.ts                 # Mock data + types + helpers for the CRM module (no backend)
   components/
     Logo.tsx                    # Shared Nexora logo component
     AppSidebar.tsx               # Sidebar nav for signed-in app
@@ -71,6 +72,9 @@ src/
     billing/
       shared.tsx                 # Shared UI primitives for Billing tabs (re-exports inventory shared.tsx atoms + BillingStatusPill, PaymentModeBadge, ModalShell, Checkbox)
       tabs/                       # One component per Billing sub-section (Overview, Invoices, InvoiceBuilder, InvoiceDetailView, Quotations, Credit Notes, Recurring, Payments, Templates, Settings)
+    crm/
+      shared.tsx                 # Shared UI primitives for CRM tabs (re-exports inventory shared.tsx atoms + CrmStatusPill, PriorityBadge, Checkbox, ModalShell, Avatar)
+      tabs/                       # One component per CRM sub-section (Overview, Customers, CustomerProfile, Customer Groups, Leads, Follow Ups, Activities, Customer Reports, CRM Settings)
   hooks/                        # React hooks
 ```
 
@@ -106,6 +110,17 @@ Landing page (/)
 - Each tab is its own component under `src/components/billing/tabs/`, wired together by the tab shell in `src/routes/_authenticated/_app/billing.tsx`.
 - All interactivity (create/edit/delete, search, filter, sort, pagination, CSV/Excel export, print) is client-side React state seeded from the mock data — nothing persists across a page reload, and there are no API/database calls.
 - Follows the same design system as the rest of the app — no new visual language was introduced.
+
+## CRM module
+
+`/crm` is a self-contained, mock-data-only module (no backend, no Supabase calls, no AI assistant, no WhatsApp/Email/SMS, no payment gateway, no automation workflows) covering customer relationship management for Indian businesses: Overview, Customers (list + full-profile detail view), Customer Groups (Retail/Wholesale/Corporate/VIP/Distributor/Dealer), Leads, Follow Ups, Activities, Customer Reports, and CRM Settings — rendered as tabs within a single route.
+
+- All mock data (100 customers, 50 leads, follow-ups, activity feed, customer groups, settings) and helpers (formatting, stats, chart aggregations, lead funnel) live in `src/lib/crm-data.ts`, generated with a deterministic seeded PRNG so data is stable across reloads. Uses realistic Indian business data (₹ amounts, GSTIN, phone/email, city/state, outstanding balances, purchase/invoice history).
+- Shared UI primitives live in `src/components/crm/shared.tsx`, re-exporting the Inventory module's atoms plus CRM-specific ones (status pill, priority badge, avatar, modal shell, checkbox).
+- Each tab is its own component under `src/components/crm/tabs/`, wired together by the tab shell in `src/routes/_authenticated/_app/crm.tsx`. Selecting a customer from the Customers tab switches into a dedicated `CustomerProfile` detail view (Overview/Purchase History/Outstanding/Notes/Activity sub-tabs).
+- All interactivity (create/edit/delete, search, filter, sort, pagination, CSV/Excel export) is client-side React state seeded from the mock data — nothing persists across a page reload, and there are no API/database calls.
+- Follows the same design system as the rest of the app (rounded-2xl white cards, slate borders, brand gradient, recharts, framer-motion) — no new visual language was introduced.
+- Landing page, Auth, Business Setup Wizard, Dashboard, Billing module, and Inventory module were intentionally left untouched while building this.
 
 ## Notes
 
