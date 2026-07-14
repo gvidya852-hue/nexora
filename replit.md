@@ -54,6 +54,7 @@ src/
         crm.tsx                 # /crm (protected) — CRM module, tab shell
         finance.tsx             # /finance (protected, "Coming soon" — do not modify)
         inventory.tsx           # /inventory (protected) — Inventory Management module, tab shell
+        reports.tsx             # /reports (protected) — Reports & Analytics module, tab shell
   contexts/
     AuthContext.tsx             # AuthProvider, useAuth, useSession hooks
     BusinessContext.tsx         # BusinessProvider, useBusiness (business record + onboarding state)
@@ -62,6 +63,7 @@ src/
     inventory-data.ts           # Mock data + types + helpers for the Inventory module (no backend)
     billing-data.ts             # Mock data + types + helpers for the Billing module (no backend)
     crm-data.ts                 # Mock data + types + helpers for the CRM module (no backend)
+    reports-data.ts              # Mock data + types + helpers for the Reports & Analytics module (no backend)
   components/
     Logo.tsx                    # Shared Nexora logo component
     AppSidebar.tsx               # Sidebar nav for signed-in app
@@ -75,6 +77,9 @@ src/
     crm/
       shared.tsx                 # Shared UI primitives for CRM tabs (re-exports inventory shared.tsx atoms + CrmStatusPill, PriorityBadge, Checkbox, ModalShell, Avatar)
       tabs/                       # One component per CRM sub-section (Overview, Customers, CustomerProfile, Customer Groups, Leads, Follow Ups, Activities, Customer Reports, CRM Settings)
+    reports/
+      shared.tsx                 # Shared UI primitives for Reports tabs (SectionCard, KpiCard, ChartCard, TableWrapper/Th/Td, ExportBar, etc.)
+      tabs/                       # One component per Reports sub-section (Executive Dashboard, Sales, Billing, Inventory, CRM, Finance, GST, Customer, Product Reports, Export Center, Report Settings)
   hooks/                        # React hooks
 ```
 
@@ -121,6 +126,19 @@ Landing page (/)
 - All interactivity (create/edit/delete, search, filter, sort, pagination, CSV/Excel export) is client-side React state seeded from the mock data — nothing persists across a page reload, and there are no API/database calls.
 - Follows the same design system as the rest of the app (rounded-2xl white cards, slate borders, brand gradient, recharts, framer-motion) — no new visual language was introduced.
 - Landing page, Auth, Business Setup Wizard, Dashboard, Billing module, and Inventory module were intentionally left untouched while building this.
+
+## Reports & Analytics module
+
+`/reports` is a self-contained, mock-data-only module (no backend, no Supabase calls, no external API/AI) providing a Power BI/Tableau/Stripe-Dashboard-style analytics center covering 11 sub-sections rendered as tabs within a single route: Executive Dashboard, Sales Reports, Billing Reports, Inventory Reports, CRM Reports, Finance Reports, GST Reports, Customer Reports, Product Reports, Export Center, and Report Settings.
+
+- All mock data (12-month trends for revenue/profit/cash flow/inventory/customer growth/GST, top customers/products/categories, sales by Daily/Weekly/Monthly/Quarterly/Yearly period, invoice/GST/finance/CRM breakdowns) and helpers live in `src/lib/reports-data.ts`, generated with a deterministic seeded PRNG so data is stable across reloads. Uses realistic Indian business data (₹ amounts, CGST/SGST/IGST, GSTIN-style reporting).
+- The Executive Dashboard's global date-range filter (Today/This Week/This Month/.../Custom) and the Sales Reports period toggle (Daily/Weekly/Monthly/Quarterly/Yearly) are functionally wired to scale/select the underlying data, not just cosmetic.
+- Shared UI primitives live in `src/components/reports/shared.tsx` (own set, following the same patterns as Inventory/Billing/CRM/Finance rather than importing across modules).
+- Each tab is its own component under `src/components/reports/tabs/`, wired together by the tab shell in `src/routes/_authenticated/_app/reports.tsx`. Uses recharts for charts and framer-motion for KPI card entrance animation.
+- Export Center and Report Settings are UI-only — export buttons show a mocked confirmation banner (no real file generation), and settings are local React state (not persisted).
+- All interactivity is client-side React state seeded from the mock data — nothing persists across a page reload, and there are no API/database calls.
+- Follows the same design system as the rest of the app (rounded-2xl white cards, slate borders, brand gradient, recharts, framer-motion) — no new visual language was introduced.
+- Landing page, Auth, Business Setup Wizard, Dashboard, Billing, Inventory, CRM, and Finance modules were intentionally left untouched while building this.
 
 ## Notes
 
