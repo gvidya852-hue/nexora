@@ -1,13 +1,11 @@
 import {
   createContext,
   useContext,
-  useEffect,
   useState,
-  useCallback,
   type ReactNode,
 } from "react";
-import { supabase } from "../lib/supabase";
 import { useAuth } from "./AuthContext";
+import { useBusinessQuery } from "../hooks/useBusinessQuery";
 
 // ── Types ─────────────────────────────────────────────────────────
 
@@ -56,48 +54,39 @@ const BusinessContext = createContext<BusinessContextValue | null>(null);
 
 export function BusinessProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  const [business, setBusiness] = useState<Business | null>(null);
-  const [businessLoading, setBusinessLoading] = useState(true);
-  const [businessError, setBusinessError] = useState<string | null>(null);
-  const [onboardingCompleted, setOnboardingCompleted] = useState(false);
 
-  const fetchBusiness = useCallback(async () => {
-    if (!user) {
-      setBusinessLoading(false);
-      return;
-    }
-    setBusinessLoading(true);
-    setBusinessError(null);
-    const { data, error } = await supabase
-      .from("business")
-      .select("*")
-      .eq("owner_id", user.id)
-      .maybeSingle();
+  const {
+    data: business,
+    isLoading: businessLoading,
+    error: queryError,
+    refetch,
+  } = useBusinessQuery(user?.id ?? null);
 
-    if (error) {
-      // Table may not exist yet (schema not run) — don't block the user
-      setBusinessError(error.message);
-      setOnboardingCompleted(true); // skip wizard if we can't fetch
-    } else {
-      setBusiness(data ?? null);
-      setOnboardingCompleted(data?.onboarding_completed ?? false);
-    }
-    setBusinessLoading(false);
-  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Optimistic flag: the wizard sets this to true immediately on completion
+  // so the OnboardingGuard lets the user through before the query re-fetches.
+  const [optimisticOnboarding, setOptimisticOnboarding] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    fetchBusiness();
-  }, [fetchBusiness]);
+  const onboardingCompleted =
+    optimisticOnboarding !== null
+      ? optimisticOnboarding
+      : // Table may not exist yet (schema not run) — skip wizard so the user isn't stuck
+        queryError != null
+        ? true
+        : (business?.onboarding_completed ?? false);
+
+  const refetchBusiness = async () => {
+    await refetch();
+  };
 
   return (
     <BusinessContext.Provider
       value={{
-        business,
+        business: business ?? null,
         businessLoading,
-        businessError,
+        businessError: queryError ? (queryError as Error).message : null,
         onboardingCompleted,
-        setOnboardingCompleted,
-        refetchBusiness: fetchBusiness,
+        setOnboardingCompleted: setOptimisticOnboarding,
+        refetchBusiness,
       }}
     >
       {children}
