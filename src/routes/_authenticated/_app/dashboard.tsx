@@ -20,7 +20,20 @@ import {
   Zap,
   CheckCircle2,
   ChevronRight,
+  PackageOpen,
+  PackageMinus,
+  SlidersHorizontal,
+  XCircle,
+  Layers,
 } from "lucide-react";
+import { useProducts } from "../../../hooks/useProductsQuery";
+import {
+  useInventoryMovements,
+  fmtMovementDate,
+  fmtMovementTime,
+} from "../../../hooks/useInventoryMovementsQuery";
+import { dbToProduct } from "../../../services/products";
+import { getStockStatus, fmtINR } from "../../../lib/inventory-data";
 import {
   AreaChart,
   Area,
@@ -212,6 +225,181 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
   );
 }
 
+// ── Inventory Overview (real-data) ────────────────────────────────
+
+function InventoryOverview({ businessId }: { businessId: string | null }) {
+  const { data: dbProducts = [], isLoading: productsLoading } = useProducts(businessId);
+  const { data: allMovements = [], isLoading: movementsLoading } = useInventoryMovements(businessId);
+
+  const products = dbProducts.map(dbToProduct);
+  const outOfStock = products.filter((p) => getStockStatus(p) === "out-of-stock").length;
+  const lowStock   = products.filter((p) => {
+    const s = getStockStatus(p);
+    return s === "low-stock" || s === "critical";
+  }).length;
+  const totalAlerts = outOfStock + lowStock;
+  const inventoryValue = products.reduce(
+    (sum, p) => sum + p.currentStock * p.purchasePrice,
+    0
+  );
+  const recentMovements = allMovements.slice(0, 6);
+
+  function movementIcon(type: string) {
+    if (type === "in")         return <PackageOpen className="h-3.5 w-3.5 text-emerald-600" />;
+    if (type === "out")        return <PackageMinus className="h-3.5 w-3.5 text-red-500" />;
+    return <SlidersHorizontal className="h-3.5 w-3.5 text-violet-500" />;
+  }
+  function movementBg(type: string) {
+    if (type === "in")  return "bg-emerald-50";
+    if (type === "out") return "bg-red-50";
+    return "bg-violet-50";
+  }
+  function movementQty(m: typeof allMovements[0]) {
+    if (m.movement_type === "in") return `+${m.quantity}`;
+    if (m.movement_type === "out") return `-${m.quantity}`;
+    return m.adjustment_type === "increase" ? `+${m.quantity}` : `-${m.quantity}`;
+  }
+  function movementQtyColor(m: (typeof allMovements)[0]) {
+    if (m.movement_type === "in") return "text-emerald-700";
+    if (m.movement_type === "out") return "text-red-600";
+    return m.adjustment_type === "increase" ? "text-emerald-700" : "text-red-600";
+  }
+  function productName(productId: string) {
+    const p = dbProducts.find((p) => p.id === productId);
+    return p?.name ?? productId.slice(0, 8) + "…";
+  }
+
+  const tiles = [
+    {
+      label: "Total Products",
+      value: productsLoading ? "—" : String(products.length),
+      icon: Package,
+      bg: "bg-cyan-50",
+      iconColor: "text-cyan-600",
+      accent: "text-cyan-700",
+    },
+    {
+      label: "Inventory Value",
+      value: productsLoading ? "—" : fmtINR(inventoryValue),
+      icon: IndianRupee,
+      bg: "bg-indigo-50",
+      iconColor: "text-indigo-600",
+      accent: "text-indigo-700",
+    },
+    {
+      label: "Low Stock Alerts",
+      value: productsLoading ? "—" : `${lowStock} items`,
+      icon: AlertTriangle,
+      bg: "bg-amber-50",
+      iconColor: "text-amber-600",
+      accent: "text-amber-700",
+      urgent: lowStock > 0,
+    },
+    {
+      label: "Out of Stock",
+      value: productsLoading ? "—" : `${outOfStock} items`,
+      icon: XCircle,
+      bg: "bg-red-50",
+      iconColor: "text-red-600",
+      accent: "text-red-700",
+      urgent: outOfStock > 0,
+    },
+  ];
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+        <div className="flex items-center gap-2">
+          <Layers className="h-4 w-4 text-cyan-600" />
+          <h3 className="text-sm font-semibold text-foreground">Inventory Overview</h3>
+          {totalAlerts > 0 && !productsLoading && (
+            <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-700">
+              {totalAlerts} alert{totalAlerts > 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
+        <Link
+          to="/inventory"
+          className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+        >
+          View Inventory <ChevronRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
+      <div className="grid grid-cols-1 gap-0 lg:grid-cols-2">
+        {/* Left: Tiles */}
+        <div className="grid grid-cols-2 gap-4 p-6 border-b border-slate-100 lg:border-b-0 lg:border-r">
+          {tiles.map((t, i) => {
+            const Icon = t.icon;
+            return (
+              <motion.div
+                key={t.label}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.04 * i, duration: 0.3 }}
+                className={`flex items-center gap-3 rounded-xl ${t.bg} p-4 ${t.urgent ? "ring-1 ring-red-200" : ""}`}
+              >
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/70`}>
+                  <Icon className={`h-4 w-4 ${t.iconColor}`} />
+                </div>
+                <div className="min-w-0">
+                  {productsLoading ? (
+                    <div className="h-5 w-16 animate-pulse rounded bg-current/20 mb-1" />
+                  ) : (
+                    <p className={`text-base font-bold leading-tight ${t.accent}`}>{t.value}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground leading-tight truncate">{t.label}</p>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+        {/* Right: Recent stock activity */}
+        <div className="p-6">
+          <p className="mb-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Recent Stock Activity
+          </p>
+          {movementsLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-9 rounded-xl bg-slate-100 animate-pulse" />
+              ))}
+            </div>
+          ) : recentMovements.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No stock movements yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {recentMovements.map((m) => (
+                <motion.div
+                  key={m.id}
+                  initial={{ opacity: 0, x: 6 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="flex items-center gap-2.5"
+                >
+                  <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${movementBg(m.movement_type)}`}>
+                    {movementIcon(m.movement_type)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-medium text-foreground truncate">
+                      {productName(m.product_id)}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {m.reference && `${m.reference} · `}
+                      {fmtMovementDate(m.created_at)} · {fmtMovementTime(m.created_at)}
+                    </p>
+                  </div>
+                  <span className={`shrink-0 text-xs font-bold tabular-nums ${movementQtyColor(m)}`}>
+                    {movementQty(m)}
+                  </span>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Sub-components ────────────────────────────────────────────────
 
 function StatCard({ card, index }: { card: typeof statCards[0]; index: number }) {
@@ -325,6 +513,9 @@ function DashboardPage() {
             <StatCard key={card.label} card={card} index={i} />
           ))}
         </div>
+
+        {/* Inventory Overview — real data */}
+        <InventoryOverview businessId={business?.id ?? null} />
 
         {/* Row 2: Revenue Chart + Business Health */}
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">

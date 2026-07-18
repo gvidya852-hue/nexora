@@ -212,3 +212,96 @@ drop trigger if exists set_products_updated_at on public.products;
 create trigger set_products_updated_at
   before update on public.products
   for each row execute procedure public.set_updated_at();
+
+-- ============================================================
+-- Inventory: Movements
+-- ============================================================
+
+create table if not exists public.inventory_movements (
+  id                uuid primary key default gen_random_uuid(),
+  business_id       uuid not null,
+  product_id        uuid not null references public.products(id) on delete cascade,
+  movement_type     text not null check (movement_type in ('in', 'out', 'adjustment')),
+  adjustment_type   text check (adjustment_type in ('increase', 'decrease')),
+  adjustment_reason text,
+  quantity          integer not null check (quantity > 0),
+  previous_stock    integer not null default 0,
+  new_stock         integer not null default 0,
+  reference         text,
+  supplier_id       uuid references public.suppliers(id) on delete set null,
+  reason            text,
+  notes             text,
+  created_by        text,
+  created_at        timestamptz not null default now()
+);
+
+alter table public.inventory_movements enable row level security;
+
+create policy "inventory_movements: owner full access"
+  on public.inventory_movements for all
+  using (
+    exists (select 1 from public.business where id = business_id and owner_id = auth.uid())
+  )
+  with check (
+    exists (select 1 from public.business where id = business_id and owner_id = auth.uid())
+  );
+
+-- Index: fast lookup by product
+create index if not exists inventory_movements_product_idx
+  on public.inventory_movements (business_id, product_id, created_at desc);
+
+-- ── Trigger: auto-update product stock on every movement ─────────
+
+create or replace function public.process_inventory_movement()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $
+declare
+  v_current_stock integer;
+  v_net_change    integer;
+  v_new_stock     integer;
+begin
+  -- Lock the product row and read current stock
+  select current_stock into v_current_stock
+  from public.products where id = new.product_id for update;
+
+  -- Compute net change based on movement type
+  if new.movement_type = 'in' then
+    v_net_change := new.quantity;
+  elsif new.movement_type = 'out' then
+    v_net_change := -new.quantity;
+  elsif new.movement_type = 'adjustment' then
+    if new.adjustment_type = 'increase' then
+      v_net_change := new.quantity;
+    else
+      v_net_change := -new.quantity;
+    end if;
+  else
+    v_net_change := 0;
+  end if;
+
+  v_new_stock := v_current_stock + v_net_change;
+
+  -- Prevent negative stock
+  if v_new_stock < 0 then
+    raise exception 'Insufficient stock. Current: %, requested to remove: %',
+      v_current_stock, new.quantity
+      using errcode = 'insufficient_stock';
+  end if;
+
+  -- Stamp previous / new stock on the movement row before it is written
+  new.previous_stock := v_current_stock;
+  new.new_stock      := v_new_stock;
+
+  -- Update product stock
+  update public.products set current_stock = v_new_stock where id = new.product_id;
+
+  return new;
+end;
+$;
+
+drop trigger if exists process_inventory_movement_trigger on public.inventory_movements;
+create trigger process_inventory_movement_trigger
+  before insert on public.inventory_movements
+  for each row execute function public.process_inventory_movement();
