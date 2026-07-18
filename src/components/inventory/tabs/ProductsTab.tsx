@@ -16,6 +16,8 @@ import {
   AlertTriangle,
   XCircle,
   X,
+  RotateCcw,
+  Loader2,
 } from "lucide-react";
 import {
   Table,
@@ -42,15 +44,10 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  products as seedProducts,
-  categories,
   brands,
   units,
-  suppliers,
-  getCategory,
   getBrand,
   getUnit,
-  getSupplier,
   getStockStatus,
   fmtINR,
   estimatedDaysRemaining,
@@ -67,16 +64,31 @@ import {
   SecondaryButton,
   EmptyState,
 } from "@/components/inventory/shared";
+import { useBusiness } from "@/contexts/BusinessContext";
+import {
+  useProducts,
+  useCategories,
+  useSuppliers,
+  useCreateProduct,
+  useUpdateProduct,
+  useDeleteProduct,
+  useDeleteManyProducts,
+  useBulkUpdateProducts,
+} from "@/hooks/useProductsQuery";
+import {
+  dbToProduct,
+  productFormToDb,
+  type DbCategory,
+  type DbSupplier,
+} from "@/services/products";
 
 // ── Constants ──────────────────────────────────────────────────────
 const PAGE_SIZE = 8;
 
 // ── Helpers ────────────────────────────────────────────────────────
-function genId() {
-  return "p" + Math.random().toString(36).slice(2, 9);
-}
-
-function buildCSV(rows: Product[]): string {
+function buildCSV(rows: Product[], cats: DbCategory[], sups: DbSupplier[]): string {
+  const catMap = new Map(cats.map((c) => [c.id, c.name]));
+  const supMap = new Map(sups.map((s) => [s.id, s.name]));
   const headers = [
     "SKU", "Name", "Barcode", "Category", "Brand", "Supplier",
     "Purchase Price", "Selling Price", "MRP", "Cost Price", "Tax %", "HSN Code",
@@ -89,9 +101,9 @@ function buildCSV(rows: Product[]): string {
     ...rows.map((p) =>
       [
         p.sku, p.name, p.barcode,
-        getCategory(p.categoryId)?.name ?? p.categoryId,
+        catMap.get(p.categoryId) ?? p.categoryId,
         getBrand(p.brandId)?.name ?? p.brandId,
-        getSupplier(p.supplierId)?.name ?? p.supplierId,
+        supMap.get(p.supplierId) ?? p.supplierId,
         p.purchasePrice, p.sellingPrice, p.mrp, p.costPrice, p.taxPercent, p.hsnCode,
         p.currentStock, p.minStock, p.maxStock, p.reorderQty, p.leadTimeDays,
         p.weight ?? "", p.color ?? "", p.size ?? "", p.material ?? "",
@@ -113,21 +125,23 @@ function downloadFile(content: string, filename: string, mime: string) {
 }
 
 // ── ProductForm ────────────────────────────────────────────────────
-type ProductFormData = Omit<Product, "id">;
+type ProductFormData = Omit<Product, "id" | "images">;
 
-const EMPTY_FORM: ProductFormData = {
-  name: "", sku: "", barcode: "", categoryId: categories[0]?.id ?? "",
-  subcategory: "", manufacturer: "",
-  brandId: brands[0]?.id ?? "", unitId: units[0]?.id ?? "",
-  supplierId: suppliers[0]?.id ?? "", purchasePrice: 0, sellingPrice: 0,
-  mrp: 0, costPrice: 0,
-  taxPercent: 18, hsnCode: "", currentStock: 0, minStock: 0, maxStock: 0,
-  reorderQty: 0, leadTimeDays: 0,
-  weight: undefined, color: "", size: "", material: "",
-  dimensions: undefined,
-  status: "active", description: "", internalNotes: "", tags: [],
-  emoji: "📦", images: [],
-};
+function makeEmptyForm(cats: DbCategory[], sups: DbSupplier[]): ProductFormData {
+  return {
+    name: "", sku: "", barcode: "", categoryId: cats[0]?.id ?? "",
+    subcategory: "", manufacturer: "",
+    brandId: brands[0]?.id ?? "", unitId: units[0]?.id ?? "",
+    supplierId: sups[0]?.id ?? "", purchasePrice: 0, sellingPrice: 0,
+    mrp: 0, costPrice: 0,
+    taxPercent: 18, hsnCode: "", currentStock: 0, minStock: 0, maxStock: 0,
+    reorderQty: 0, leadTimeDays: 0,
+    weight: undefined, color: "", size: "", material: "",
+    dimensions: undefined,
+    status: "active", description: "", internalNotes: "", tags: [],
+    emoji: "📦",
+  };
+}
 
 type FormTab = "basic" | "pricing" | "stock" | "physical" | "notes";
 
@@ -136,11 +150,19 @@ function ProductForm({
   isEdit,
   onSave,
   onCancel,
+  saving,
+  saveError,
+  dbCategories,
+  dbSuppliers,
 }: {
   initial: ProductFormData;
   isEdit: boolean;
   onSave: (data: ProductFormData) => void;
   onCancel: () => void;
+  saving: boolean;
+  saveError: string | null;
+  dbCategories: DbCategory[];
+  dbSuppliers: DbSupplier[];
 }) {
   const [form, setForm] = useState<ProductFormData>(initial);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -163,6 +185,11 @@ function ProductForm({
     const e: Record<string, string> = {};
     if (!form.name.trim()) e.name = "Product name is required";
     if (!form.sku.trim()) e.sku = "SKU is required";
+    if (form.purchasePrice < 0) e.purchasePrice = "Must be 0 or more";
+    if (form.sellingPrice < 0) e.sellingPrice = "Must be 0 or more";
+    if (form.currentStock < 0) e.currentStock = "Must be 0 or more";
+    if (form.minStock < 0) e.minStock = "Must be 0 or more";
+    if (form.maxStock < 0) e.maxStock = "Must be 0 or more";
     return e;
   }
 
@@ -241,25 +268,29 @@ function ProductForm({
             <div>
               <label className={labelCls}>Category</label>
               <select value={form.categoryId} onChange={(e) => set("categoryId", e.target.value)} className={selectCls}>
-                {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                <option value="">— Select category —</option>
+                {dbCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
             <div>
               <label className={labelCls}>Brand</label>
               <select value={form.brandId} onChange={(e) => set("brandId", e.target.value)} className={selectCls}>
+                <option value="">— Select brand —</option>
                 {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
             <div>
               <label className={labelCls}>Unit</label>
               <select value={form.unitId} onChange={(e) => set("unitId", e.target.value)} className={selectCls}>
+                <option value="">— Select unit —</option>
                 {units.map((u) => <option key={u.id} value={u.id}>{u.name} ({u.shortCode})</option>)}
               </select>
             </div>
             <div>
               <label className={labelCls}>Supplier</label>
               <select value={form.supplierId} onChange={(e) => set("supplierId", e.target.value)} className={selectCls}>
-                {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                <option value="">— Select supplier —</option>
+                {dbSuppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
             <div>
@@ -283,6 +314,7 @@ function ProductForm({
             <div>
               <label className={labelCls}>Purchase Price (₹)</label>
               <input type="number" min={0} value={form.purchasePrice} onChange={(e) => set("purchasePrice", Number(e.target.value))} className={inputCls} />
+              {errors.purchasePrice && <p className={errCls}>{errors.purchasePrice}</p>}
             </div>
             <div>
               <label className={labelCls}>Cost Price (₹)</label>
@@ -291,6 +323,7 @@ function ProductForm({
             <div>
               <label className={labelCls}>Selling Price (₹)</label>
               <input type="number" min={0} value={form.sellingPrice} onChange={(e) => set("sellingPrice", Number(e.target.value))} className={inputCls} />
+              {errors.sellingPrice && <p className={errCls}>{errors.sellingPrice}</p>}
             </div>
             <div>
               <label className={labelCls}>MRP (₹)</label>
@@ -313,14 +346,17 @@ function ProductForm({
             <div>
               <label className={labelCls}>{isEdit ? "Current Stock" : "Opening Stock"}</label>
               <input type="number" min={0} value={form.currentStock} onChange={(e) => set("currentStock", Number(e.target.value))} className={inputCls} />
+              {errors.currentStock && <p className={errCls}>{errors.currentStock}</p>}
             </div>
             <div>
               <label className={labelCls}>Min Stock Level</label>
               <input type="number" min={0} value={form.minStock} onChange={(e) => set("minStock", Number(e.target.value))} className={inputCls} />
+              {errors.minStock && <p className={errCls}>{errors.minStock}</p>}
             </div>
             <div>
               <label className={labelCls}>Max Stock Level</label>
               <input type="number" min={0} value={form.maxStock} onChange={(e) => set("maxStock", Number(e.target.value))} className={inputCls} />
+              {errors.maxStock && <p className={errCls}>{errors.maxStock}</p>}
             </div>
             <div>
               <label className={labelCls}>Reorder Qty</label>
@@ -415,11 +451,22 @@ function ProductForm({
         )}
       </div>
 
+      {saveError && (
+        <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-xs text-red-700">
+          {saveError}
+        </div>
+      )}
+
       <div className="mt-4 flex justify-end gap-2 border-t border-slate-100 pt-4">
         <button type="button" onClick={onCancel} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-foreground hover:bg-slate-50 transition-colors">
           Cancel
         </button>
-        <button type="submit" className="inline-flex items-center gap-2 rounded-xl bg-[image:var(--gradient-brand)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
+        <button
+          type="submit"
+          disabled={saving}
+          className="inline-flex items-center gap-2 rounded-xl bg-[image:var(--gradient-brand)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all disabled:opacity-70 disabled:cursor-not-allowed disabled:translate-y-0"
+        >
+          {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {isEdit ? "Save Changes" : "Add Product"}
         </button>
       </div>
@@ -433,17 +480,21 @@ function ProductDetailDialog({
   open,
   onOpenChange,
   onEdit,
+  dbCategories,
+  dbSuppliers,
 }: {
   product: Product | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onEdit: (p: Product) => void;
+  dbCategories: DbCategory[];
+  dbSuppliers: DbSupplier[];
 }) {
   if (!product) return null;
-  const cat = getCategory(product.categoryId);
+  const cat = dbCategories.find((c) => c.id === product.categoryId);
   const brand = getBrand(product.brandId);
   const unit = getUnit(product.unitId);
-  const supplier = getSupplier(product.supplierId);
+  const supplier = dbSuppliers.find((s) => s.id === product.supplierId);
   const stockStatus = getStockStatus(product);
   const daysLeft = estimatedDaysRemaining(product);
 
@@ -596,10 +647,26 @@ function ProductDetailDialog({
 
 // ── ProductsTab ────────────────────────────────────────────────────
 export function ProductsTab() {
-  // Local state seeded from imported products (no mutation of import)
-  const [localProducts, setLocalProducts] = useState<Product[]>(() =>
-    seedProducts.map((p) => ({ ...p }))
+  const { business } = useBusiness();
+  const businessId = business?.id ?? null;
+
+  // ── Server state ───────────────────────────────────────────────
+  const { data: dbProducts = [], isLoading: productsLoading } = useProducts(businessId);
+  const { data: dbCategories = [] } = useCategories(businessId);
+  const { data: dbSuppliers = [] } = useSuppliers(businessId);
+
+  // Map DB rows to UI Product type
+  const allProducts: Product[] = useMemo(
+    () => dbProducts.map(dbToProduct),
+    [dbProducts]
   );
+
+  // ── Mutations ──────────────────────────────────────────────────
+  const createMutation = useCreateProduct(businessId);
+  const updateMutation = useUpdateProduct(businessId);
+  const deleteMutation = useDeleteProduct(businessId);
+  const deleteManyMutation = useDeleteManyProducts(businessId);
+  const bulkUpdateMutation = useBulkUpdateProducts(businessId);
 
   // Toolbar filters
   const [search, setSearch] = useState("");
@@ -622,13 +689,16 @@ export function ProductsTab() {
   // Create / Edit dialog
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
-  const [formInitial, setFormInitial] = useState<ProductFormData>(EMPTY_FORM);
+  const [formInitial, setFormInitial] = useState<ProductFormData>(() => makeEmptyForm(dbCategories, dbSuppliers));
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Derived category/brand options
+  const isSaving = createMutation.isPending || updateMutation.isPending;
+
+  // Filter options
   const categoryOptions = [
     { value: "all", label: "All Categories" },
-    ...categories.map((c) => ({ value: c.id, label: c.name })),
+    ...dbCategories.map((c) => ({ value: c.id, label: c.name })),
   ];
   const brandOptions = [
     { value: "all", label: "All Brands" },
@@ -655,9 +725,9 @@ export function ProductsTab() {
   ];
 
   // Computed stats
-  const totalActive = localProducts.filter((p) => p.status === "active").length;
-  const totalLowStock = localProducts.filter((p) => getStockStatus(p) === "low-stock").length;
-  const totalOutOfStock = localProducts.filter((p) => getStockStatus(p) === "out-of-stock").length;
+  const totalActive = allProducts.filter((p) => p.status === "active").length;
+  const totalLowStock = allProducts.filter((p) => getStockStatus(p) === "low-stock").length;
+  const totalOutOfStock = allProducts.filter((p) => getStockStatus(p) === "out-of-stock").length;
 
   const anyFilterActive =
     filterCategory !== "all" ||
@@ -668,7 +738,7 @@ export function ProductsTab() {
 
   // Filtered + sorted products
   const filtered = useMemo(() => {
-    let rows = localProducts;
+    let rows = allProducts;
     const q = search.toLowerCase();
     if (q) rows = rows.filter((p) =>
       p.name.toLowerCase().includes(q) ||
@@ -689,7 +759,7 @@ export function ProductsTab() {
       return 0;
     });
     return rows;
-  }, [localProducts, search, filterCategory, filterBrand, filterStatus, filterStockStatus, sortKey]);
+  }, [allProducts, search, filterCategory, filterBrand, filterStatus, filterStockStatus, sortKey]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -729,34 +799,47 @@ export function ProductsTab() {
   const allPageSelected = pageRows.length > 0 && pageRows.every((r) => selectedIds.has(r.id));
   const someSelected = selectedIds.size > 0;
 
-  // CRUD actions
+  // ── CRUD actions ───────────────────────────────────────────────
   function handleDuplicate(product: Product) {
-    const copy: Product = { ...product, id: genId(), name: product.name + " (Copy)", sku: product.sku + "-COPY" };
-    setLocalProducts((prev) => [copy, ...prev]);
+    if (!businessId) return;
+    const form = (({ id: _id, images: _img, ...rest }) => rest)(product as Product & { images?: unknown });
+    const payload = productFormToDb(
+      { ...form as ProductFormData, sku: form.sku + "-COPY", name: form.name + " (Copy)" },
+      businessId
+    );
+    createMutation.mutate(payload);
   }
+
   function handleArchive(id: string) {
-    setLocalProducts((prev) => prev.map((p) => p.id === id ? { ...p, status: "archived" } : p));
+    updateMutation.mutate({ id, payload: { status: "archived" } });
   }
+
+  function handleRestore(id: string) {
+    updateMutation.mutate({ id, payload: { status: "active" } });
+  }
+
   function handleDelete(id: string) {
-    setLocalProducts((prev) => prev.filter((p) => p.id !== id));
+    deleteMutation.mutate(id);
     setSelectedIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
   }
+
   function handleBulkArchive() {
-    setLocalProducts((prev) => prev.map((p) => selectedIds.has(p.id) ? { ...p, status: "archived" } : p));
+    bulkUpdateMutation.mutate({ ids: [...selectedIds], payload: { status: "archived" } });
     setSelectedIds(new Set());
   }
+
   function handleBulkDelete() {
-    setLocalProducts((prev) => prev.filter((p) => !selectedIds.has(p.id)));
+    deleteManyMutation.mutate([...selectedIds]);
     setSelectedIds(new Set());
   }
 
   // Export
   function handleExportCSV() {
-    const csv = buildCSV(filtered);
+    const csv = buildCSV(filtered, dbCategories, dbSuppliers);
     downloadFile(csv, "products-export.csv", "text/csv;charset=utf-8;");
   }
   function handleExportExcel() {
-    const csv = buildCSV(filtered);
+    const csv = buildCSV(filtered, dbCategories, dbSuppliers);
     downloadFile(csv, "products-export.csv", "text/csv;charset=utf-8;");
   }
 
@@ -774,32 +857,55 @@ export function ProductsTab() {
   // Open create form
   function openCreate() {
     setFormMode("create");
-    setFormInitial(EMPTY_FORM);
+    setFormInitial(makeEmptyForm(dbCategories, dbSuppliers));
     setEditingId(null);
+    setSaveError(null);
     setFormOpen(true);
   }
 
   // Open edit form
   function openEdit(p: Product) {
     setFormMode("edit");
-    const { id, ...rest } = p;
-    setFormInitial(rest);
-    setEditingId(id);
+    const { id: _id, images: _img, ...rest } = p as Product & { images?: unknown };
+    setFormInitial(rest as ProductFormData);
+    setEditingId(p.id);
+    setSaveError(null);
     setFormOpen(true);
   }
 
   // Save form
-  function handleFormSave(data: ProductFormData) {
-    if (formMode === "create") {
-      const newProduct: Product = { id: genId(), ...data };
-      setLocalProducts((prev) => [newProduct, ...prev]);
-    } else if (editingId) {
-      setLocalProducts((prev) => prev.map((p) => p.id === editingId ? { id: editingId, ...data } : p));
+  async function handleFormSave(data: ProductFormData) {
+    if (!businessId) return;
+    setSaveError(null);
+    try {
+      if (formMode === "create") {
+        const payload = productFormToDb(data, businessId);
+        await createMutation.mutateAsync(payload);
+      } else if (editingId) {
+        const payload = productFormToDb(data, businessId);
+        await updateMutation.mutateAsync({ id: editingId, payload });
+      }
+      setFormOpen(false);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to save product. Please try again.");
     }
-    setFormOpen(false);
   }
 
-  const uniqueCategories = new Set(localProducts.map((p) => p.categoryId)).size;
+  const uniqueCategories = new Set(allProducts.map((p) => p.categoryId).filter(Boolean)).size;
+
+  // ── Loading state ──────────────────────────────────────────────
+  if (productsLoading) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-24 rounded-2xl bg-slate-100 animate-pulse" />
+          ))}
+        </div>
+        <div className="h-96 rounded-2xl bg-slate-100 animate-pulse" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -807,7 +913,7 @@ export function ProductsTab() {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatTile
           label="Total Products"
-          value={String(localProducts.length)}
+          value={String(allProducts.length)}
           sub={`${uniqueCategories} categories`}
           icon={Package}
           bg="bg-blue-50"
@@ -845,7 +951,7 @@ export function ProductsTab() {
 
       <SectionCard
         title="Products"
-        subtitle={`${localProducts.length} products across ${uniqueCategories} categories`}
+        subtitle={`${allProducts.length} products across ${uniqueCategories} categories`}
         action={<PrimaryButton icon={Plus} onClick={openCreate}>Add Product</PrimaryButton>}
         noPadding
       >
@@ -879,7 +985,7 @@ export function ProductsTab() {
               <X className="h-3.5 w-3.5" /> Clear Filters
             </button>
           )}
-          {filtered.length !== localProducts.length && (
+          {filtered.length !== allProducts.length && (
             <span className="ml-auto text-xs text-muted-foreground">{filtered.length} result{filtered.length !== 1 ? "s" : ""}</span>
           )}
         </div>
@@ -934,9 +1040,9 @@ export function ProductsTab() {
             </TableHeader>
             <TableBody>
               {pageRows.map((product, i) => {
-                const cat = getCategory(product.categoryId);
+                const cat = dbCategories.find((c) => c.id === product.categoryId);
                 const brand = getBrand(product.brandId);
-                const supplier = getSupplier(product.supplierId);
+                const supplier = dbSuppliers.find((s) => s.id === product.supplierId);
                 const stockStatus = getStockStatus(product);
                 const isSelected = selectedIds.has(product.id);
 
@@ -1008,9 +1114,15 @@ export function ProductsTab() {
                             <Copy className="h-3.5 w-3.5" /> Duplicate
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => handleArchive(product.id)} className="gap-2 text-xs text-amber-600 focus:text-amber-600">
-                            <Archive className="h-3.5 w-3.5" /> Archive
-                          </DropdownMenuItem>
+                          {product.status === "archived" ? (
+                            <DropdownMenuItem onClick={() => handleRestore(product.id)} className="gap-2 text-xs text-emerald-600 focus:text-emerald-600">
+                              <RotateCcw className="h-3.5 w-3.5" /> Restore
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem onClick={() => handleArchive(product.id)} className="gap-2 text-xs text-amber-600 focus:text-amber-600">
+                              <Archive className="h-3.5 w-3.5" /> Archive
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem onClick={() => handleDelete(product.id)} className="gap-2 text-xs text-red-600 focus:text-red-600">
                             <Trash2 className="h-3.5 w-3.5" /> Delete
                           </DropdownMenuItem>
@@ -1033,19 +1145,26 @@ export function ProductsTab() {
           open={detailOpen}
           onOpenChange={setDetailOpen}
           onEdit={openEdit}
+          dbCategories={dbCategories}
+          dbSuppliers={dbSuppliers}
         />
 
         {/* Create / Edit Dialog */}
-        <Dialog open={formOpen} onOpenChange={setFormOpen}>
+        <Dialog open={formOpen} onOpenChange={(v) => { if (!isSaving) setFormOpen(v); }}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>{formMode === "create" ? "Add New Product" : "Edit Product"}</DialogTitle>
             </DialogHeader>
             <ProductForm
+              key={editingId ?? "create"}
               initial={formInitial}
               isEdit={formMode === "edit"}
               onSave={handleFormSave}
               onCancel={() => setFormOpen(false)}
+              saving={isSaving}
+              saveError={saveError}
+              dbCategories={dbCategories}
+              dbSuppliers={dbSuppliers}
             />
           </DialogContent>
         </Dialog>

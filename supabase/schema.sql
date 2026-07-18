@@ -64,3 +64,151 @@ drop trigger if exists set_profiles_updated_at on public.profiles;
 create trigger set_profiles_updated_at
   before update on public.profiles
   for each row execute procedure public.set_updated_at();
+
+-- ============================================================
+-- Inventory: Categories
+-- ============================================================
+
+create table if not exists public.categories (
+  id          uuid primary key default gen_random_uuid(),
+  business_id uuid not null,
+  name        text not null,
+  description text,
+  color       text not null default 'bg-slate-100',
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+alter table public.categories enable row level security;
+
+create policy "categories: owner full access"
+  on public.categories for all
+  using (
+    exists (select 1 from public.business where id = business_id and owner_id = auth.uid())
+  )
+  with check (
+    exists (select 1 from public.business where id = business_id and owner_id = auth.uid())
+  );
+
+drop trigger if exists set_categories_updated_at on public.categories;
+create trigger set_categories_updated_at
+  before update on public.categories
+  for each row execute procedure public.set_updated_at();
+
+-- ============================================================
+-- Inventory: Suppliers
+-- ============================================================
+
+create table if not exists public.suppliers (
+  id                 uuid primary key default gen_random_uuid(),
+  business_id        uuid not null,
+  name               text not null,
+  contact_person     text,
+  phone              text,
+  email              text,
+  gst_number         text,
+  pan                text,
+  city               text,
+  address            text,
+  state              text,
+  pincode            text,
+  payment_terms      text,
+  lead_time_days     integer not null default 0,
+  outstanding_amount numeric(12,2) not null default 0,
+  rating             numeric(3,1) not null default 0,
+  total_purchases    numeric(14,2) not null default 0,
+  products_supplied  integer not null default 0,
+  bank_name          text,
+  account_number     text,
+  ifsc               text,
+  notes              text,
+  created_at         timestamptz not null default now(),
+  updated_at         timestamptz not null default now()
+);
+
+alter table public.suppliers enable row level security;
+
+create policy "suppliers: owner full access"
+  on public.suppliers for all
+  using (
+    exists (select 1 from public.business where id = business_id and owner_id = auth.uid())
+  )
+  with check (
+    exists (select 1 from public.business where id = business_id and owner_id = auth.uid())
+  );
+
+drop trigger if exists set_suppliers_updated_at on public.suppliers;
+create trigger set_suppliers_updated_at
+  before update on public.suppliers
+  for each row execute procedure public.set_updated_at();
+
+-- ============================================================
+-- Inventory: Products
+-- ============================================================
+
+create table if not exists public.products (
+  id             uuid primary key default gen_random_uuid(),
+  business_id    uuid not null,
+  sku            text not null,
+  barcode        text,
+  name           text not null,
+  description    text,
+  category_id    uuid references public.categories(id) on delete set null,
+  supplier_id    uuid references public.suppliers(id) on delete set null,
+  purchase_price numeric(12,2) not null default 0,
+  selling_price  numeric(12,2) not null default 0,
+  tax_rate       numeric(5,2) not null default 18,
+  unit           text,
+  opening_stock  integer not null default 0,
+  current_stock  integer not null default 0,
+  minimum_stock  integer not null default 0,
+  maximum_stock  integer not null default 0,
+  status         text not null default 'active'
+                   check (status in ('active', 'inactive', 'archived')),
+  image_url      text,
+  -- Extended fields used by the existing UI
+  mrp            numeric(12,2) not null default 0,
+  cost_price     numeric(12,2) not null default 0,
+  hsn_code       text,
+  brand_id       text,
+  unit_id        text,
+  reorder_qty    integer not null default 0,
+  lead_time_days integer not null default 0,
+  weight         numeric(8,3),
+  dimensions     jsonb,
+  color          text,
+  size           text,
+  material       text,
+  subcategory    text,
+  manufacturer   text,
+  internal_notes text,
+  tags           text[],
+  emoji          text not null default '📦',
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+
+-- Unique SKU per business
+create unique index if not exists products_business_sku_idx
+  on public.products (business_id, sku);
+
+-- Unique non-empty barcode per business
+create unique index if not exists products_business_barcode_idx
+  on public.products (business_id, barcode)
+  where barcode is not null and barcode <> '';
+
+alter table public.products enable row level security;
+
+create policy "products: owner full access"
+  on public.products for all
+  using (
+    exists (select 1 from public.business where id = business_id and owner_id = auth.uid())
+  )
+  with check (
+    exists (select 1 from public.business where id = business_id and owner_id = auth.uid())
+  );
+
+drop trigger if exists set_products_updated_at on public.products;
+create trigger set_products_updated_at
+  before update on public.products
+  for each row execute procedure public.set_updated_at();

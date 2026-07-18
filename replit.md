@@ -29,8 +29,18 @@ Runs on **port 5000**. The workflow "Start application" handles this automatical
 
 Run `supabase/schema.sql` in the Supabase SQL Editor to create:
 - `profiles` table (auto-populated on signup via trigger)
-- Row-level security policies
-- `updated_at` auto-update trigger
+- `categories` table — per-business inventory categories (RLS-protected)
+- `suppliers` table — per-business supplier records (RLS-protected)
+- `products` table — per-business product catalogue (RLS-protected)
+- Row-level security policies (all inventory tables check `business.owner_id = auth.uid()`)
+- `updated_at` auto-update trigger on all tables
+
+### Inventory RLS
+All three inventory tables (`categories`, `suppliers`, `products`) use:
+```sql
+exists (select 1 from public.business where id = business_id and owner_id = auth.uid())
+```
+so only the business owner sees their own data.
 
 ## Project structure
 
