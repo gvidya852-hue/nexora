@@ -256,7 +256,7 @@ create or replace function public.process_inventory_movement()
 returns trigger
 language plpgsql
 security definer set search_path = public
-as $
+as $$
 declare
   v_current_stock integer;
   v_net_change    integer;
@@ -299,7 +299,7 @@ begin
 
   return new;
 end;
-$;
+$$;
 
 drop trigger if exists process_inventory_movement_trigger on public.inventory_movements;
 create trigger process_inventory_movement_trigger
