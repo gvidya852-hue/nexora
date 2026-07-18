@@ -21,8 +21,6 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import {
-  invoices as seedInvoices,
-  getCustomer,
   fmtINR,
   fmtDate,
   invoiceGrandTotal,
@@ -31,6 +29,10 @@ import {
   type InvoiceStatus,
   type PaymentStatus,
 } from "@/lib/billing-data";
+import { useBusiness } from "@/contexts/BusinessContext";
+import { useInvoices, useCreateInvoice, useUpdateInvoice, useDeleteInvoice } from "@/hooks/useInvoicesQuery";
+import { useCustomers } from "@/hooks/useCustomersQuery";
+import { useProducts } from "@/hooks/useProductsQuery";
 import {
   SectionCard,
   StatTile,
@@ -82,7 +84,10 @@ function nextInvoiceNumberLocal(invs: Invoice[]): string {
   return `INV-2026-${String(next).padStart(4, "0")}`;
 }
 
-function buildCSV(rows: Invoice[]): string {
+function buildCSV(
+  rows: Invoice[],
+  resolveCustomer: (id: string) => { name: string; gstin: string } | undefined
+): string {
   const headers = [
     "Invoice Number",
     "Customer",
@@ -100,7 +105,7 @@ function buildCSV(rows: Invoice[]): string {
   const lines = [
     headers.join(","),
     ...rows.map((inv) => {
-      const cust = getCustomer(inv.customerId);
+      const cust = resolveCustomer(inv.customerId);
       const totals = computeDocumentTotals(inv.items, inv.isInterState);
       const tax = inv.isInterState ? totals.igst : totals.cgst + totals.sgst;
       const balance = totals.grandTotal - inv.amountPaid;
@@ -151,12 +156,37 @@ function usePopover() {
 
 // ── InvoicesTab ───────────────────────────────────────────────────
 export function InvoicesTab() {
+  // ── Business context & live data ───────────────────────────────
+  const { business } = useBusiness();
+  const businessId = business?.id ?? null;
+
+  const invoicesQuery = useInvoices(businessId);
+  const localInvoices: Invoice[] = invoicesQuery.data ?? [];
+
+  const { data: dbCustomers = [] } = useCustomers(businessId);
+  const { data: dbProducts = [] } = useProducts(businessId);
+
+  // Resolve a customer ID → display info from DB
+  const resolveCustomer = (customerId: string) => {
+    const found = dbCustomers.find((c) => c.id === customerId);
+    if (found) {
+      return {
+        name: found.name,
+        gstin: found.gst_number ?? "",
+        contactPerson: found.contact_person ?? "",
+      };
+    }
+    return undefined;
+  };
+
+  // Mutations
+  const createInvoiceMutation = useCreateInvoice(businessId);
+  const updateInvoiceMutation = useUpdateInvoice(businessId);
+  const deleteInvoiceMutation = useDeleteInvoice(businessId);
+
   // ── State ──────────────────────────────────────────────────────
   type ViewState = "list" | "create" | "edit" | "view";
   const [view, setView] = useState<ViewState>("list");
-  const [localInvoices, setLocalInvoices] = useState<Invoice[]>(() =>
-    seedInvoices.map((i) => ({ ...i })),
-  );
   const [activeInvoice, setActiveInvoice] = useState<Invoice | undefined>(undefined);
 
   // Filters / sort / pagination
@@ -225,7 +255,7 @@ export function InvoicesTab() {
     if (q) {
       const qNum = parseFloat(q.replace(/,/g, ""));
       rows = rows.filter((inv) => {
-        const cust = getCustomer(inv.customerId);
+        const cust = resolveCustomer(inv.customerId);
         const totals = computeDocumentTotals(inv.items, inv.isInterState);
         const grandTotal = Math.round(totals.grandTotal);
         return (
@@ -380,14 +410,15 @@ export function InvoicesTab() {
       status: "draft",
       paymentStatus: "pending",
       amountPaid: 0,
-      createdDate: "2026-07-13",
+      createdDate: new Date().toISOString().split("T")[0],
     };
-    setLocalInvoices((prev) => [newInv, ...prev]);
+    // Save duplicate as a new draft (no stock movements)
+    createInvoiceMutation.mutate({ invoice: newInv, dbProducts: [], skipMovements: true });
   }
 
   function handleDelete(id: string) {
     if (!confirm("Delete this invoice? This action cannot be undone.")) return;
-    setLocalInvoices((prev) => prev.filter((i) => i.id !== id));
+    deleteInvoiceMutation.mutate(id);
     setSelectedIds((prev) => {
       const next = new Set(prev);
       next.delete(id);
@@ -397,20 +428,20 @@ export function InvoicesTab() {
 
   function handleBulkDelete() {
     if (!confirm(`Delete ${selectedIds.size} selected invoice(s)? This cannot be undone.`)) return;
-    setLocalInvoices((prev) => prev.filter((i) => !selectedIds.has(i.id)));
+    [...selectedIds].forEach((id) => deleteInvoiceMutation.mutate(id));
     setSelectedIds(new Set());
   }
 
   function handleExportCSV() {
     const selected =
       selectedIds.size > 0 ? filtered.filter((i) => selectedIds.has(i.id)) : filtered;
-    downloadFile(buildCSV(selected), "invoices-export.csv", "text/csv;charset=utf-8;");
+    downloadFile(buildCSV(selected, resolveCustomer), "invoices-export.csv", "text/csv;charset=utf-8;");
   }
 
   function handleExportExcel() {
     const selected =
       selectedIds.size > 0 ? filtered.filter((i) => selectedIds.has(i.id)) : filtered;
-    downloadFile(buildCSV(selected), "invoices-export.xls", "application/vnd.ms-excel");
+    downloadFile(buildCSV(selected, resolveCustomer), "invoices-export.xls", "application/vnd.ms-excel");
   }
 
   function handleBulkPrint() {
@@ -424,27 +455,29 @@ export function InvoicesTab() {
   }
 
   function handleBulkMarkPaid() {
-    setLocalInvoices((prev) =>
-      prev.map((inv) => {
-        if (!selectedIds.has(inv.id)) return inv;
+    localInvoices
+      .filter((inv) => selectedIds.has(inv.id))
+      .forEach((inv) => {
         const totals = computeDocumentTotals(inv.items, inv.isInterState);
-        return {
-          ...inv,
-          status: "paid" as InvoiceStatus,
-          paymentStatus: "paid" as PaymentStatus,
-          amountPaid: totals.grandTotal,
-        };
-      }),
-    );
+        updateInvoiceMutation.mutate({
+          id: inv.id,
+          invoice: {
+            ...inv,
+            status: "paid" as InvoiceStatus,
+            paymentStatus: "paid" as PaymentStatus,
+            amountPaid: totals.grandTotal,
+          },
+        });
+      });
     setSelectedIds(new Set());
   }
 
   // ── Builder save ───────────────────────────────────────────────
   function handleBuilderSave(inv: Invoice) {
     if (view === "create") {
-      setLocalInvoices((prev) => [inv, ...prev]);
+      createInvoiceMutation.mutate({ invoice: inv, dbProducts });
     } else {
-      setLocalInvoices((prev) => prev.map((i) => (i.id === inv.id ? inv : i)));
+      updateInvoiceMutation.mutate({ id: inv.id, invoice: inv });
     }
     setView("list");
     setActiveInvoice(undefined);
@@ -960,7 +993,7 @@ export function InvoicesTab() {
                 </thead>
                 <tbody>
                   {pageRows.map((inv, i) => {
-                    const cust = getCustomer(inv.customerId);
+                    const cust = resolveCustomer(inv.customerId);
                     const totals = computeDocumentTotals(inv.items, inv.isInterState);
                     const tax = inv.isInterState ? totals.igst : totals.cgst + totals.sgst;
                     const isSelected = selectedIds.has(inv.id);

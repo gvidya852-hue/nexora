@@ -34,6 +34,9 @@ import {
 } from "../../../hooks/useInventoryMovementsQuery";
 import { dbToProduct } from "../../../services/products";
 import { getStockStatus, fmtINR } from "../../../lib/inventory-data";
+import { useInvoices } from "../../../hooks/useInvoicesQuery";
+import { useCustomers } from "../../../hooks/useCustomersQuery";
+import { computeDocumentTotals } from "../../../lib/billing-data";
 import {
   AreaChart,
   Area,
@@ -107,96 +110,7 @@ const healthMetrics = [
   { label: "Payment Recovery",  value: "78%",     sub: "collected on time",score: 78, color: "text-violet-600", bar: "bg-violet-500" },
 ];
 
-const statCards = [
-  {
-    label: "Today's Revenue",
-    value: "₹24,780",
-    change: "+18%",
-    up: true,
-    sub: "vs yesterday",
-    icon: IndianRupee,
-    bg: "bg-blue-50",
-    iconColor: "text-blue-600",
-    accent: "bg-blue-500",
-  },
-  {
-    label: "Today's Orders",
-    value: "34",
-    change: "+12%",
-    up: true,
-    sub: "vs yesterday",
-    icon: ShoppingCart,
-    bg: "bg-emerald-50",
-    iconColor: "text-emerald-600",
-    accent: "bg-emerald-500",
-  },
-  {
-    label: "Outstanding Invoices",
-    value: "₹1,20,000",
-    change: "6 invoices",
-    up: false,
-    sub: "awaiting payment",
-    icon: FileText,
-    bg: "bg-amber-50",
-    iconColor: "text-amber-600",
-    accent: "bg-amber-500",
-  },
-  {
-    label: "Pending Payments",
-    value: "₹45,200",
-    change: "4 pending",
-    up: false,
-    sub: "to be collected",
-    icon: Clock,
-    bg: "bg-orange-50",
-    iconColor: "text-orange-600",
-    accent: "bg-orange-500",
-  },
-  {
-    label: "Low Stock Alerts",
-    value: "8 items",
-    change: "Critical",
-    up: false,
-    sub: "need restocking",
-    icon: AlertTriangle,
-    bg: "bg-red-50",
-    iconColor: "text-red-600",
-    accent: "bg-red-500",
-  },
-  {
-    label: "Total Customers",
-    value: "1,284",
-    change: "+5%",
-    up: true,
-    sub: "this month",
-    icon: Users,
-    bg: "bg-violet-50",
-    iconColor: "text-violet-600",
-    accent: "bg-violet-500",
-  },
-  {
-    label: "Total Products",
-    value: "342",
-    change: "Active",
-    up: true,
-    sub: "in inventory",
-    icon: Package,
-    bg: "bg-cyan-50",
-    iconColor: "text-cyan-600",
-    accent: "bg-cyan-500",
-  },
-  {
-    label: "Monthly Profit",
-    value: "₹41,220",
-    change: "+9%",
-    up: true,
-    sub: "vs last month",
-    icon: TrendingUp,
-    bg: "bg-indigo-50",
-    iconColor: "text-indigo-600",
-    accent: "bg-indigo-500",
-  },
-];
+// statCards replaced by LiveStatCards component below
 
 const quickActions = [
   { label: "Create Invoice",      icon: Plus,        to: "/billing",      color: "bg-blue-600 hover:bg-blue-700",   desc: "New GST invoice" },
@@ -210,6 +124,136 @@ const quickActions = [
 
 function fmt(v: number) {
   return "₹" + v.toLocaleString("en-IN");
+}
+
+// ── Live stat cards ───────────────────────────────────────────────
+
+function LiveStatCards({ businessId }: { businessId: string | null }) {
+  const { data: invoices = [], isLoading: invLoading } = useInvoices(businessId);
+  const { data: dbProducts = [], isLoading: prodLoading } = useProducts(businessId);
+  const { data: dbCustomers = [], isLoading: custLoading } = useCustomers(businessId);
+
+  const today = new Date().toISOString().split("T")[0];
+
+  const todayInvoices = invoices.filter((inv) => inv.createdDate === today);
+  const todayRevenue = todayInvoices.reduce((sum, inv) => {
+    const t = computeDocumentTotals(inv.items, inv.isInterState);
+    return sum + t.grandTotal;
+  }, 0);
+  const todayOrders = todayInvoices.length;
+
+  const outstandingInvoices = invoices.filter(
+    (inv) => inv.status !== "paid" && inv.status !== "cancelled"
+  );
+  const outstandingAmount = outstandingInvoices.reduce((sum, inv) => {
+    const t = computeDocumentTotals(inv.items, inv.isInterState);
+    return sum + (t.grandTotal - inv.amountPaid);
+  }, 0);
+
+  const products = dbProducts.map(dbToProduct);
+  const lowStockCount = products.filter((p) => {
+    const s = getStockStatus(p);
+    return s === "low-stock" || s === "critical" || s === "out-of-stock";
+  }).length;
+
+  const cards = [
+    {
+      label: "Today's Revenue",
+      value: invLoading ? "—" : fmtINR(todayRevenue),
+      change: invLoading ? "…" : `${todayOrders} invoice${todayOrders !== 1 ? "s" : ""}`,
+      up: todayRevenue > 0,
+      sub: "created today",
+      icon: IndianRupee,
+      bg: "bg-blue-50",
+      iconColor: "text-blue-600",
+      accent: "bg-blue-500",
+    },
+    {
+      label: "Today's Orders",
+      value: invLoading ? "—" : String(todayOrders),
+      change: invLoading ? "…" : todayOrders > 0 ? "Active" : "None yet",
+      up: todayOrders > 0,
+      sub: "invoices today",
+      icon: ShoppingCart,
+      bg: "bg-emerald-50",
+      iconColor: "text-emerald-600",
+      accent: "bg-emerald-500",
+    },
+    {
+      label: "Outstanding Invoices",
+      value: invLoading ? "—" : fmtINR(outstandingAmount),
+      change: invLoading ? "…" : `${outstandingInvoices.length} invoices`,
+      up: false,
+      sub: "awaiting payment",
+      icon: FileText,
+      bg: "bg-amber-50",
+      iconColor: "text-amber-600",
+      accent: "bg-amber-500",
+    },
+    {
+      label: "Pending Payments",
+      value: invLoading ? "—" : fmtINR(outstandingAmount),
+      change: invLoading ? "…" : `${outstandingInvoices.length} pending`,
+      up: false,
+      sub: "to be collected",
+      icon: Clock,
+      bg: "bg-orange-50",
+      iconColor: "text-orange-600",
+      accent: "bg-orange-500",
+    },
+    {
+      label: "Low Stock Alerts",
+      value: prodLoading ? "—" : `${lowStockCount} items`,
+      change: prodLoading ? "…" : lowStockCount > 0 ? "Critical" : "All good",
+      up: lowStockCount === 0,
+      sub: "need restocking",
+      icon: AlertTriangle,
+      bg: "bg-red-50",
+      iconColor: "text-red-600",
+      accent: "bg-red-500",
+    },
+    {
+      label: "Total Customers",
+      value: custLoading ? "—" : dbCustomers.length.toLocaleString("en-IN"),
+      change: custLoading ? "…" : "Registered",
+      up: dbCustomers.length > 0,
+      sub: "in your account",
+      icon: Users,
+      bg: "bg-violet-50",
+      iconColor: "text-violet-600",
+      accent: "bg-violet-500",
+    },
+    {
+      label: "Total Products",
+      value: prodLoading ? "—" : String(dbProducts.length),
+      change: prodLoading ? "…" : "Active",
+      up: dbProducts.length > 0,
+      sub: "in inventory",
+      icon: Package,
+      bg: "bg-cyan-50",
+      iconColor: "text-cyan-600",
+      accent: "bg-cyan-500",
+    },
+    {
+      label: "Monthly Profit",
+      value: "₹41,220",
+      change: "+9%",
+      up: true,
+      sub: "vs last month",
+      icon: TrendingUp,
+      bg: "bg-indigo-50",
+      iconColor: "text-indigo-600",
+      accent: "bg-indigo-500",
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {cards.map((card, i) => (
+        <StatCard key={card.label} card={card} index={i} />
+      ))}
+    </div>
+  );
 }
 
 // Custom tooltip for charts
@@ -402,7 +446,19 @@ function InventoryOverview({ businessId }: { businessId: string | null }) {
 
 // ── Sub-components ────────────────────────────────────────────────
 
-function StatCard({ card, index }: { card: typeof statCards[0]; index: number }) {
+type StatCardData = {
+  label: string;
+  value: string;
+  change: string;
+  up: boolean;
+  sub: string;
+  icon: React.ElementType;
+  bg: string;
+  iconColor: string;
+  accent: string;
+};
+
+function StatCard({ card, index }: { card: StatCardData; index: number }) {
   const Icon = card.icon;
   return (
     <motion.div
@@ -507,12 +563,8 @@ function DashboardPage() {
           </Link>
         </motion.div>
 
-        {/* Stat Cards — 8 in 4-col grid */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {statCards.map((card, i) => (
-            <StatCard key={card.label} card={card} index={i} />
-          ))}
-        </div>
+        {/* Stat Cards — live data from DB */}
+        <LiveStatCards businessId={business?.id ?? null} />
 
         {/* Inventory Overview — real data */}
         <InventoryOverview businessId={business?.id ?? null} />

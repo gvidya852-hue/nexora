@@ -26,7 +26,6 @@ import {
   Clock,
 } from "lucide-react";
 import {
-  customers,
   company,
   paymentModeLabels,
   computeDocumentTotals,
@@ -42,9 +41,13 @@ import {
   type InvoiceStatus,
   type PaymentMode,
   type PaymentStatus,
-  type Customer,
 } from "@/lib/billing-data";
-import { products, units, type Product } from "@/lib/inventory-data";
+import { units, type Product } from "@/lib/inventory-data";
+import { useProducts } from "@/hooks/useProductsQuery";
+import { dbToProduct } from "@/services/products";
+import { useCustomers } from "@/hooks/useCustomersQuery";
+import type { Customer as DbCustomer } from "@/services/customers";
+import { useBusiness } from "@/contexts/BusinessContext";
 import { SectionCard, PrimaryButton, SecondaryButton } from "@/components/billing/shared";
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -78,18 +81,17 @@ interface NewCustomerForm {
 const TODAY = "2026-07-13";
 
 function emptyLine(): BuilderLineItem {
-  const p = products[0];
   return {
     id: "li-" + Date.now() + Math.random(),
-    productId: p.id,
-    productName: p.name,
-    barcode: p.barcode,
-    hsnCode: p.hsnCode,
+    productId: "",
+    productName: "",
+    barcode: "",
+    hsnCode: "",
     quantity: 1,
-    unitId: p.unitId,
-    unitPrice: p.sellingPrice,
+    unitId: "",
+    unitPrice: 0,
     discountPercent: 0,
-    gstPercent: p.taxPercent,
+    gstPercent: 18,
   };
 }
 
@@ -179,12 +181,33 @@ export function InvoiceBuilder({
   onSave: (invoice: Invoice) => void;
   onCancel: () => void;
 }) {
+  // ── Live data from DB ────────────────────────────────────────────
+  const { business } = useBusiness();
+  const businessId = business?.id ?? null;
+
+  const { data: dbRawProducts = [] } = useProducts(businessId);
+  const products: Product[] = dbRawProducts.map(dbToProduct);
+
+  const { data: dbRawCustomers = [] } = useCustomers(businessId);
+  const localCustomers = dbRawCustomers.map((c: DbCustomer) => ({
+    id: c.id,
+    name: c.name,
+    gstin: c.gst_number ?? "",
+    contactPerson: c.contact_person ?? c.name,
+    phone: c.phone,
+    email: c.email ?? "",
+    address: c.address ?? "",
+    shippingAddress: c.shipping_address ?? "",
+    city: c.city ?? "",
+    state: c.state ?? "Karnataka",
+  }));
+
   // ── Customer section ─────────────────────────────────────────────
   const [customerMode, setCustomerMode] = useState<"existing" | "new">(
     invoice ? "existing" : "existing",
   );
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>(
-    invoice?.customerId ?? customers[0].id,
+    invoice?.customerId ?? "",
   );
   const [customerSearch, setCustomerSearch] = useState("");
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
@@ -221,24 +244,42 @@ export function InvoiceBuilder({
   // ── Line items ───────────────────────────────────────────────────
   const [lineItems, setLineItems] = useState<BuilderLineItem[]>(() => {
     if (invoice && invoice.items.length > 0) {
-      return invoice.items.map((item) => {
-        const p = products.find((pr) => pr.id === item.productId);
-        return {
-          id: "li-" + Math.random(),
-          productId: item.productId,
-          productName: p?.name ?? item.productId,
-          barcode: p?.barcode ?? "",
-          hsnCode: p?.hsnCode ?? "",
-          quantity: item.quantity,
-          unitId: p?.unitId ?? "u1",
-          unitPrice: item.unitPrice,
-          discountPercent: item.discountPercent,
-          gstPercent: item.gstPercent,
-        };
-      });
+      return invoice.items.map((item) => ({
+        id: "li-" + Math.random(),
+        productId: item.productId,
+        productName: "", // filled by effect once products load
+        barcode: "",
+        hsnCode: "",
+        quantity: item.quantity,
+        unitId: "",
+        unitPrice: item.unitPrice,
+        discountPercent: item.discountPercent,
+        gstPercent: item.gstPercent,
+      }));
     }
     return [emptyLine()];
   });
+
+  // Fill product display fields once real products arrive (edit mode)
+  const [lineItemsFilled, setLineItemsFilled] = useState(!invoice?.items.length);
+  useEffect(() => {
+    if (!lineItemsFilled && products.length > 0) {
+      setLineItems((prev) =>
+        prev.map((li) => {
+          const p = products.find((pr) => pr.id === li.productId);
+          if (!p) return li;
+          return {
+            ...li,
+            productName: p.name,
+            barcode: p.barcode,
+            hsnCode: p.hsnCode,
+            unitId: p.unitId,
+          };
+        })
+      );
+      setLineItemsFilled(true);
+    }
+  }, [products, lineItemsFilled]);
   const [productSearches, setProductSearches] = useState<Record<string, string>>({});
   const [productDropdownOpen, setProductDropdownOpen] = useState<string | null>(null);
 
@@ -264,8 +305,8 @@ export function InvoiceBuilder({
   const [barcodeToast, setBarcodeToast] = useState(false);
 
   // ── Derived ──────────────────────────────────────────────────────
-  const selectedCustomer: Customer | undefined =
-    customerMode === "existing" ? customers.find((c) => c.id === selectedCustomerId) : undefined;
+  const selectedCustomer =
+    customerMode === "existing" ? localCustomers.find((c) => c.id === selectedCustomerId) : undefined;
 
   // ── Address state (derived from selectedCustomer, editable) ──────
   const [billingAddress, setBillingAddress] = useState(
@@ -299,13 +340,13 @@ export function InvoiceBuilder({
 
   const filteredCustomers = useMemo(() => {
     const q = customerSearch.toLowerCase();
-    return customers.filter(
+    return localCustomers.filter(
       (c) =>
         c.name.toLowerCase().includes(q) ||
         c.gstin.toLowerCase().includes(q) ||
         c.contactPerson.toLowerCase().includes(q),
     );
-  }, [customerSearch]);
+  }, [customerSearch, localCustomers]);
 
   const invoiceItems = lineItems.map(lineToInvoiceItem);
   const totals = computeDocumentTotals(invoiceItems, isInterState);
@@ -1416,9 +1457,13 @@ export function InvoiceBuilder({
                             onBlur={() => setTimeout(() => setProductDropdownOpen(null), 150)}
                             className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs outline-none focus:border-[color:var(--brand-electric)]"
                           />
-                          {productDropdownOpen === li.id && filteredProducts.length > 0 && (
+                          {productDropdownOpen === li.id && (
                             <div className="absolute z-20 top-9 left-0 w-64 rounded-xl border border-slate-200 bg-white shadow-lg max-h-48 overflow-y-auto">
-                              {filteredProducts.map((p) => (
+                              {filteredProducts.length === 0 ? (
+                                <p className="px-3 py-2 text-xs text-slate-400">
+                                  {products.length === 0 ? "Loading products…" : "No products match"}
+                                </p>
+                              ) : filteredProducts.map((p) => (
                                 <button
                                   key={p.id}
                                   className="w-full px-3 py-2 text-left hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0"
@@ -1426,7 +1471,7 @@ export function InvoiceBuilder({
                                 >
                                   <p className="text-xs font-semibold text-slate-800">{p.name}</p>
                                   <p className="text-[10px] text-slate-400">
-                                    {p.sku} · ₹{p.sellingPrice.toLocaleString("en-IN")}
+                                    {p.sku} · ₹{p.sellingPrice.toLocaleString("en-IN")} · {p.currentStock} in stock
                                   </p>
                                 </button>
                               ))}
@@ -1453,15 +1498,38 @@ export function InvoiceBuilder({
 
                       {/* Quantity */}
                       <td className="px-2 py-1.5">
-                        <input
-                          type="number"
-                          min="1"
-                          value={li.quantity}
-                          onChange={(e) =>
-                            updateLine(li.id, "quantity", Number(e.target.value) || 1)
-                          }
-                          className="h-8 w-16 rounded-lg border border-slate-200 bg-white px-2 text-xs outline-none focus:border-[color:var(--brand-electric)]"
-                        />
+                        {(() => {
+                          const lp = products.find((p) => p.id === li.productId);
+                          const stockWarn = lp && li.quantity > lp.currentStock;
+                          return (
+                            <div>
+                              <input
+                                type="number"
+                                min="1"
+                                value={li.quantity}
+                                onChange={(e) =>
+                                  updateLine(li.id, "quantity", Number(e.target.value) || 1)
+                                }
+                                className={`h-8 w-16 rounded-lg border px-2 text-xs outline-none focus:border-[color:var(--brand-electric)] ${
+                                  stockWarn
+                                    ? "border-red-400 bg-red-50"
+                                    : "border-slate-200 bg-white"
+                                }`}
+                              />
+                              {lp && (
+                                <p
+                                  className={`mt-0.5 text-[10px] leading-tight ${
+                                    stockWarn ? "font-semibold text-red-600" : "text-slate-400"
+                                  }`}
+                                >
+                                  {stockWarn
+                                    ? `⚠ Only ${lp.currentStock} left`
+                                    : `${lp.currentStock} in stock`}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Unit */}
