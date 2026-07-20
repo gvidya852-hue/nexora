@@ -69,9 +69,10 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
   const onboardingCompleted =
     optimisticOnboarding !== null
       ? optimisticOnboarding
-      : // Table may not exist yet (schema not run) — skip wizard so the user isn't stuck
+      : // If there's a query error (e.g. table not found), send users to the wizard
+        // so they see a meaningful save error rather than being silently bypassed.
         queryError != null
-        ? true
+        ? false
         : (business?.onboarding_completed ?? false);
 
   const refetchBusiness = async () => {
