@@ -715,9 +715,13 @@ function OnboardingPage() {
         setStep((s) => s + 1);
       }
     } catch (err: unknown) {
-      setFormError(
-        err instanceof Error ? err.message : "Something went wrong. Please try again."
-      );
+      const msg =
+        err instanceof Error
+          ? err.message
+          : typeof err === "object" && err !== null && "message" in err
+          ? String((err as { message: unknown }).message)
+          : "Something went wrong. Please try again.";
+      setFormError(msg);
     } finally {
       setSaving(false);
     }
