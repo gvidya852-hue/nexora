@@ -66,6 +66,59 @@ create trigger set_profiles_updated_at
   for each row execute procedure public.set_updated_at();
 
 -- ============================================================
+-- Business profile table (one row per user — drives the wizard)
+-- ============================================================
+
+create table if not exists public.business (
+  id                    uuid primary key default gen_random_uuid(),
+  owner_id              uuid not null unique references auth.users(id) on delete cascade,
+  business_name         text,
+  business_type         text,
+  logo_url              text,
+  owner_name            text,
+  phone                 text,
+  email                 text,
+  gst_number            text,
+  pan_number            text,
+  currency              text not null default 'INR',
+  timezone              text not null default 'Asia/Kolkata',
+  financial_year        text not null default 'April-March',
+  address               text,
+  city                  text,
+  state                 text,
+  country               text not null default 'India',
+  postal_code           text,
+  invoice_prefix        text not null default 'INV',
+  invoice_number_format text not null default 'INV-{YYYY}-{####}',
+  tax_enabled           boolean not null default true,
+  language              text not null default 'en',
+  theme                 text not null default 'light',
+  onboarding_completed  boolean not null default false,
+  created_at            timestamptz not null default now(),
+  updated_at            timestamptz not null default now()
+);
+
+alter table public.business enable row level security;
+
+create policy "business: owner select"
+  on public.business for select
+  using (auth.uid() = owner_id);
+
+create policy "business: owner insert"
+  on public.business for insert
+  with check (auth.uid() = owner_id);
+
+create policy "business: owner update"
+  on public.business for update
+  using (auth.uid() = owner_id)
+  with check (auth.uid() = owner_id);
+
+drop trigger if exists set_business_updated_at on public.business;
+create trigger set_business_updated_at
+  before update on public.business
+  for each row execute procedure public.set_updated_at();
+
+-- ============================================================
 -- Inventory: Categories
 -- ============================================================
 
