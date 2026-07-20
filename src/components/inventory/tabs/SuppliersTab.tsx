@@ -4,13 +4,96 @@ import {
   Building2, Clock, CreditCard, FileText, Upload, TrendingUp, AlertCircle,
   ShoppingCart, DollarSign,
 } from "lucide-react";
+import { useBusiness } from "@/contexts/BusinessContext";
 import {
-  suppliers as initialSuppliers,
-  purchaseOrders,
-  goodsReceivedNotes,
-  fmtINR,
-} from "@/lib/inventory-data";
-import type { Supplier } from "@/lib/inventory-data";
+  useSuppliers,
+  useCreateSupplier,
+  useUpdateSupplier,
+  useDeleteSupplier,
+} from "@/hooks/useProductsQuery";
+import type { DbSupplier, DbSupplierInsert } from "@/services/products";
+import { fmtINR } from "@/lib/inventory-data";
+
+// ── UI adapter type ────────────────────────────────────────────────
+
+interface Supplier {
+  id: string;
+  name: string;
+  contactPerson: string;
+  phone: string;
+  email: string;
+  gstNumber: string;
+  pan: string;
+  city: string;
+  address: string;
+  state: string;
+  pincode: string;
+  paymentTerms: string;
+  leadTimeDays: number;
+  outstandingAmount: number;
+  rating: number;
+  totalPurchases: number;
+  productsSupplied: number;
+  bankName?: string;
+  accountNumber?: string;
+  ifsc?: string;
+  notes?: string;
+}
+
+function dbToSupplier(db: DbSupplier): Supplier {
+  return {
+    id: db.id,
+    name: db.name,
+    contactPerson: db.contact_person ?? "",
+    phone: db.phone ?? "",
+    email: db.email ?? "",
+    gstNumber: db.gst_number ?? "",
+    pan: db.pan ?? "",
+    city: db.city ?? "",
+    address: db.address ?? "",
+    state: db.state ?? "",
+    pincode: db.pincode ?? "",
+    paymentTerms: db.payment_terms ?? "",
+    leadTimeDays: db.lead_time_days ?? 0,
+    outstandingAmount: db.outstanding_amount ?? 0,
+    rating: db.rating ?? 0,
+    totalPurchases: db.total_purchases ?? 0,
+    productsSupplied: db.products_supplied ?? 0,
+    bankName: db.bank_name ?? undefined,
+    accountNumber: db.account_number ?? undefined,
+    ifsc: db.ifsc ?? undefined,
+    notes: db.notes ?? undefined,
+  };
+}
+
+function supplierFormStateToDb(
+  data: SupplierFormState,
+  businessId: string
+): DbSupplierInsert {
+  return {
+    business_id: businessId,
+    name: data.name.trim(),
+    contact_person: data.contactPerson || null,
+    phone: data.phone || null,
+    email: data.email || null,
+    gst_number: data.gstNumber || null,
+    pan: data.pan || null,
+    city: data.city || null,
+    address: data.address || null,
+    state: data.state || null,
+    pincode: data.pincode || null,
+    payment_terms: data.paymentTerms || null,
+    lead_time_days: parseInt(data.leadTimeDays, 10) || 0,
+    outstanding_amount: 0,
+    rating: 0,
+    total_purchases: 0,
+    products_supplied: 0,
+    bank_name: data.bankName || null,
+    account_number: data.accountNumber || null,
+    ifsc: data.ifsc || null,
+    notes: data.notes || null,
+  };
+}
 import {
   SectionCard, StatTile, PrimaryButton, SearchInput, StatusPill, EmptyState, fmtDate,
 } from "@/components/inventory/shared";
@@ -81,8 +164,9 @@ function SupplierProfileDialog({
 }) {
   if (!supplier) return null;
 
-  const supplierPOs = purchaseOrders.filter((po) => po.supplierId === supplier.id);
-  const recentPOs = supplierPOs.slice(0, 3);
+  // Purchase orders not yet in DB — always empty
+  const supplierPOs: unknown[] = [];
+  const recentPOs: unknown[] = [];
   const fullAddress = [supplier.address, supplier.city, supplier.state, supplier.pincode]
     .filter(Boolean)
     .join(", ");
@@ -266,40 +350,15 @@ function SupplierProfileDialog({
             </div>
           </div>
 
-          {/* Recent Orders */}
+          {/* Recent Orders — Purchase Orders not yet available */}
           <div>
             <h4 className="mb-3 text-sm font-semibold text-foreground">
               Recent Orders
               <span className="ml-2 text-xs font-normal text-muted-foreground">({supplierPOs.length} total)</span>
             </h4>
-            {recentPOs.length === 0 ? (
-              <p className="rounded-xl border border-slate-200 bg-slate-50 py-6 text-center text-sm text-muted-foreground">
-                No purchase orders found.
-              </p>
-            ) : (
-              <div className="rounded-xl border border-slate-200 overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-slate-100 hover:bg-transparent bg-slate-50">
-                      <TableHead className="text-xs font-semibold text-muted-foreground">PO Number</TableHead>
-                      <TableHead className="text-xs font-semibold text-muted-foreground">Date</TableHead>
-                      <TableHead className="text-xs font-semibold text-muted-foreground">Status</TableHead>
-                      <TableHead className="text-xs font-semibold text-muted-foreground text-right">Items</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {recentPOs.map((po) => (
-                      <TableRow key={po.id} className="border-slate-100 hover:bg-slate-50/60">
-                        <TableCell className="text-sm font-mono font-medium text-foreground">{po.poNumber}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{fmtDate(po.createdDate)}</TableCell>
-                        <TableCell><StatusPill status={po.status} /></TableCell>
-                        <TableCell className="text-right text-sm text-muted-foreground">{po.items.length}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+            <p className="rounded-xl border border-slate-200 bg-slate-50 py-6 text-center text-sm text-muted-foreground">
+              No purchase orders found.
+            </p>
           </div>
         </div>
 
@@ -548,7 +607,16 @@ function supplierToFormState(s: Supplier): SupplierFormState {
 // ── Main Tab ──────────────────────────────────────────────────────
 
 export function SuppliersTab() {
-  const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers);
+  const { business } = useBusiness();
+  const businessId = business?.id ?? null;
+
+  const { data: dbSuppliers = [], isLoading } = useSuppliers(businessId);
+  const createMutation = useCreateSupplier(businessId);
+  const updateMutation = useUpdateSupplier(businessId);
+  const deleteMutation = useDeleteSupplier(businessId);
+
+  const suppliers: Supplier[] = dbSuppliers.map(dbToSupplier);
+
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Supplier | null>(null);
@@ -572,65 +640,25 @@ export function SuppliersTab() {
     : 0;
 
   const handleCreate = (data: SupplierFormState) => {
-    const newSupplier: Supplier = {
-      id: `s-${Date.now()}`,
-      name: data.name,
-      contactPerson: data.contactPerson,
-      phone: data.phone,
-      email: data.email,
-      gstNumber: data.gstNumber,
-      city: data.city,
-      pan: data.pan,
-      address: data.address,
-      state: data.state,
-      pincode: data.pincode,
-      paymentTerms: data.paymentTerms,
-      leadTimeDays: parseInt(data.leadTimeDays, 10) || 0,
-      outstandingAmount: 0,
-      rating: 0,
-      totalPurchases: 0,
-      productsSupplied: 0,
-      bankName: data.bankName || undefined,
-      accountNumber: data.accountNumber || undefined,
-      ifsc: data.ifsc || undefined,
-      notes: data.notes || undefined,
-    };
-    setSuppliers((prev) => [...prev, newSupplier]);
+    if (!businessId) return;
+    createMutation.mutate(supplierFormStateToDb(data, businessId), {
+      onSuccess: () => setCreateOpen(false),
+    });
   };
 
   const handleEdit = (data: SupplierFormState) => {
-    if (!editTarget) return;
-    setSuppliers((prev) =>
-      prev.map((s) =>
-        s.id === editTarget.id
-          ? {
-              ...s,
-              name: data.name,
-              contactPerson: data.contactPerson,
-              phone: data.phone,
-              email: data.email,
-              gstNumber: data.gstNumber,
-              city: data.city,
-              pan: data.pan,
-              address: data.address,
-              state: data.state,
-              pincode: data.pincode,
-              paymentTerms: data.paymentTerms,
-              leadTimeDays: parseInt(data.leadTimeDays, 10) || 0,
-              bankName: data.bankName || undefined,
-              accountNumber: data.accountNumber || undefined,
-              ifsc: data.ifsc || undefined,
-              notes: data.notes || undefined,
-            }
-          : s
-      )
+    if (!editTarget || !businessId) return;
+    const { business_id: _bid, outstanding_amount: _oa, rating: _r, total_purchases: _tp, products_supplied: _ps, ...updatePayload } =
+      supplierFormStateToDb(data, businessId);
+    updateMutation.mutate(
+      { id: editTarget.id, payload: updatePayload },
+      { onSuccess: () => setEditTarget(null) }
     );
-    setEditTarget(null);
   };
 
   const handleDelete = (id: string) => {
     if (window.confirm("Delete this supplier? This cannot be undone.")) {
-      setSuppliers((prev) => prev.filter((s) => s.id !== id));
+      deleteMutation.mutate(id);
     }
   };
 

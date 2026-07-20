@@ -2,7 +2,8 @@
 import { useState, useCallback } from "react";
 import { Camera, ScanLine, RefreshCw, Printer, QrCode, Barcode } from "lucide-react";
 import { motion } from "framer-motion";
-import { products } from "@/lib/inventory-data";
+import { useBusiness } from "@/contexts/BusinessContext";
+import { useProducts } from "@/hooks/useProductsQuery";
 import { SectionCard, Select, PrimaryButton, SecondaryButton } from "@/components/inventory/shared";
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -112,18 +113,28 @@ function LabelCard({
 // ── Main Tab ──────────────────────────────────────────────────────
 
 export function BarcodeTab() {
-  const [selectedProductId, setSelectedProductId] = useState(products[0]?.id ?? "");
-  const [barcodeValue, setBarcodeValue] = useState(() => products[0]?.barcode ?? "");
+  const { business } = useBusiness();
+  const { data: dbProducts = [] } = useProducts(business?.id ?? null);
+
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [barcodeValue, setBarcodeValue] = useState("");
   const [mode, setMode] = useState<"barcode" | "qr">("barcode");
   const [labelCount, setLabelCount] = useState(6);
 
-  const selectedProduct = products.find((p) => p.id === selectedProductId) ?? products[0];
+  // Initialise selection once products load
+  const firstProduct = dbProducts[0];
+  const effectiveProductId = selectedProductId || firstProduct?.id || "";
+  const selectedProduct = dbProducts.find((p) => p.id === effectiveProductId) ?? firstProduct;
+  const effectiveBarcodeValue = barcodeValue || selectedProduct?.barcode || selectedProduct?.sku || "";
 
-  const handleProductChange = useCallback((id: string) => {
-    setSelectedProductId(id);
-    const p = products.find((x) => x.id === id);
-    if (p) setBarcodeValue(p.barcode);
-  }, []);
+  const handleProductChange = useCallback(
+    (id: string) => {
+      setSelectedProductId(id);
+      const p = dbProducts.find((x) => x.id === id);
+      if (p) setBarcodeValue(p.barcode ?? p.sku ?? "");
+    },
+    [dbProducts]
+  );
 
   const handleGenerateNew = useCallback(() => {
     setBarcodeValue(generateBarcode());
@@ -154,7 +165,7 @@ export function BarcodeTab() {
               <Select
                 value={selectedProductId}
                 onChange={handleProductChange}
-                options={products.map((p) => ({ value: p.id, label: p.name }))}
+                options={dbProducts.map((p) => ({ value: p.id, label: p.name }))}
                 className="w-full"
               />
             </div>

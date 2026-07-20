@@ -37,6 +37,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -509,6 +510,7 @@ function ProductDetailDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
+          <DialogDescription className="sr-only">Product details</DialogDescription>
           <DialogTitle className="flex items-center gap-2">
             <span className="text-2xl">{product.emoji}</span>
             {product.name}
@@ -1153,6 +1155,9 @@ export function ProductsTab() {
         <Dialog open={formOpen} onOpenChange={(v) => { if (!isSaving) setFormOpen(v); }}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
+              <DialogDescription className="sr-only">
+                {formMode === "create" ? "Fill in the details to add a new product." : "Edit the product details below."}
+              </DialogDescription>
               <DialogTitle>{formMode === "create" ? "Add New Product" : "Edit Product"}</DialogTitle>
             </DialogHeader>
             <ProductForm

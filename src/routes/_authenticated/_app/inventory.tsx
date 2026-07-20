@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import {
   LayoutGrid,
   Package,
@@ -19,7 +19,13 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { products, suppliers, categories } from "../../../lib/inventory-data";
+import { useBusiness } from "@/contexts/BusinessContext";
+import {
+  useProducts,
+  useCategories,
+  useSuppliers,
+} from "@/hooks/useProductsQuery";
+import type { DbProduct, DbCategory, DbSupplier } from "@/services/products";
 
 import { OverviewTab } from "../../../components/inventory/tabs/OverviewTab";
 import { ProductsTab } from "../../../components/inventory/tabs/ProductsTab";
@@ -94,67 +100,78 @@ interface SearchResult {
   type: "product" | "supplier" | "category";
 }
 
-function buildSearchResults(query: string): SearchResult[] {
-  if (!query.trim()) return [];
-  const q = query.toLowerCase();
-  const results: SearchResult[] = [];
-
-  products.forEach((p) => {
-    if (
-      p.name.toLowerCase().includes(q) ||
-      p.sku.toLowerCase().includes(q) ||
-      p.barcode.includes(q)
-    ) {
-      results.push({
-        id: p.id,
-        label: p.name,
-        sublabel: `SKU: ${p.sku} · ${p.barcode}`,
-        tab: "products",
-        type: "product",
-      });
-    }
-  });
-
-  suppliers.forEach((s) => {
-    if (s.name.toLowerCase().includes(q) || s.contactPerson.toLowerCase().includes(q)) {
-      results.push({
-        id: s.id,
-        label: s.name,
-        sublabel: `Supplier · ${s.city}`,
-        tab: "suppliers",
-        type: "supplier",
-      });
-    }
-  });
-
-  categories.forEach((c) => {
-    if (c.name.toLowerCase().includes(q)) {
-      results.push({
-        id: c.id,
-        label: c.name,
-        sublabel: `Category · ${c.productCount} products`,
-        tab: "categories",
-        type: "category",
-      });
-    }
-  });
-
-  return results.slice(0, 8);
-}
-
 const typeIcon: Record<string, React.ElementType> = {
   product: Package,
   supplier: Truck,
   category: Tag,
 };
 
-// ── Global Search Component ───────────────────────────────────────
+// ── Global Search Component — live Supabase data ──────────────────
 
 function GlobalSearch({ onNavigate }: { onNavigate: (tab: TabId) => void }) {
+  const { business } = useBusiness();
+  const businessId = business?.id ?? null;
+
+  const { data: dbProducts = [] } = useProducts(businessId);
+  const { data: dbCategories = [] } = useCategories(businessId);
+  const { data: dbSuppliers = [] } = useSuppliers(businessId);
+
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const results = buildSearchResults(query);
+
+  // Build search results from live DB data
+  const results = useMemo<SearchResult[]>(() => {
+    if (!query.trim()) return [];
+    const q = query.toLowerCase();
+    const out: SearchResult[] = [];
+
+    dbProducts.forEach((p) => {
+      if (
+        p.name.toLowerCase().includes(q) ||
+        p.sku.toLowerCase().includes(q) ||
+        (p.barcode ?? "").includes(q)
+      ) {
+        out.push({
+          id: p.id,
+          label: p.name,
+          sublabel: `SKU: ${p.sku}${p.barcode ? " · " + p.barcode : ""}`,
+          tab: "products",
+          type: "product",
+        });
+      }
+    });
+
+    dbSuppliers.forEach((s) => {
+      if (
+        s.name.toLowerCase().includes(q) ||
+        (s.contact_person ?? "").toLowerCase().includes(q)
+      ) {
+        out.push({
+          id: s.id,
+          label: s.name,
+          sublabel: `Supplier · ${s.city ?? ""}`,
+          tab: "suppliers",
+          type: "supplier",
+        });
+      }
+    });
+
+    dbCategories.forEach((c) => {
+      if (c.name.toLowerCase().includes(q)) {
+        const count = dbProducts.filter((p) => p.category_id === c.id).length;
+        out.push({
+          id: c.id,
+          label: c.name,
+          sublabel: `Category · ${count} product${count !== 1 ? "s" : ""}`,
+          tab: "categories",
+          type: "category",
+        });
+      }
+    });
+
+    return out.slice(0, 8);
+  }, [query, dbProducts, dbSuppliers, dbCategories]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {

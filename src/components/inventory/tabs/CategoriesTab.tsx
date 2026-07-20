@@ -1,12 +1,19 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Tag, MoreVertical, Plus, Pencil, Trash2 } from "lucide-react";
-import { categories as initialCategories } from "@/lib/inventory-data";
-import type { Category } from "@/lib/inventory-data";
+import { useBusiness } from "@/contexts/BusinessContext";
+import {
+  useCategories,
+  useCreateCategory,
+  useUpdateCategory,
+  useDeleteCategory,
+  useProducts,
+} from "@/hooks/useProductsQuery";
 import { SectionCard, PrimaryButton } from "@/components/inventory/shared";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -53,18 +60,19 @@ function CategoryFormDialog({
   initial,
   onSubmit,
   title,
+  loading,
 }: {
   open: boolean;
   onClose: () => void;
   initial?: CategoryFormState;
   onSubmit: (data: CategoryFormState) => void;
   title: string;
+  loading?: boolean;
 }) {
   const [form, setForm] = useState<CategoryFormState>(
     initial ?? { name: "", description: "", color: "bg-blue-500" }
   );
 
-  // Reset form when dialog opens with new initial values
   const handleOpenChange = (o: boolean) => {
     if (o && initial) setForm(initial);
     if (!o) onClose();
@@ -74,13 +82,15 @@ function CategoryFormDialog({
     e.preventDefault();
     if (!form.name.trim()) return;
     onSubmit(form);
-    onClose();
   };
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
+          <DialogDescription className="sr-only">
+            {title === "Create Category" ? "Fill in the details to create a new category." : "Edit the category details below."}
+          </DialogDescription>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
@@ -125,9 +135,10 @@ function CategoryFormDialog({
             </DialogClose>
             <button
               type="submit"
-              className="inline-flex items-center gap-2 rounded-xl bg-[image:var(--gradient-brand)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:shadow-md"
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-xl bg-[image:var(--gradient-brand)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:shadow-md disabled:opacity-60"
             >
-              Save Category
+              {loading ? "Saving…" : "Save Category"}
             </button>
           </DialogFooter>
         </form>
@@ -137,112 +148,171 @@ function CategoryFormDialog({
 }
 
 export function CategoriesTab() {
-  const [cats, setCats] = useState<Category[]>(initialCategories);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<Category | null>(null);
+  const { business } = useBusiness();
+  const businessId = business?.id ?? null;
 
-  const maxCount = Math.max(...cats.map((c) => c.productCount), 1);
+  const { data: dbCategories = [], isLoading } = useCategories(businessId);
+  const { data: dbProducts = [] } = useProducts(businessId);
+
+  const createMutation = useCreateCategory(businessId);
+  const updateMutation = useUpdateCategory(businessId);
+  const deleteMutation = useDeleteCategory(businessId);
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<{ id: string; name: string; description: string; color: string } | null>(null);
+
+  // Compute product count per category from live products
+  const productCountMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    dbProducts.forEach((p) => {
+      if (p.category_id) map[p.category_id] = (map[p.category_id] ?? 0) + 1;
+    });
+    return map;
+  }, [dbProducts]);
+
+  const maxCount = Math.max(...dbCategories.map((c) => productCountMap[c.id] ?? 0), 1);
 
   const handleCreate = (data: CategoryFormState) => {
-    const newCat: Category = {
-      id: `c-${Date.now()}`,
-      name: data.name,
-      description: data.description,
-      color: data.color,
-      productCount: 0,
-    };
-    setCats((prev) => [...prev, newCat]);
+    if (!businessId) return;
+    createMutation.mutate(
+      {
+        business_id: businessId,
+        name: data.name.trim(),
+        description: data.description.trim() || null,
+        color: data.color,
+      },
+      { onSuccess: () => setCreateOpen(false) }
+    );
   };
 
   const handleEdit = (data: CategoryFormState) => {
     if (!editTarget) return;
-    setCats((prev) =>
-      prev.map((c) =>
-        c.id === editTarget.id ? { ...c, name: data.name, description: data.description, color: data.color } : c
-      )
+    updateMutation.mutate(
+      {
+        id: editTarget.id,
+        payload: {
+          name: data.name.trim(),
+          description: data.description.trim() || null,
+          color: data.color,
+        },
+      },
+      { onSuccess: () => setEditTarget(null) }
     );
-    setEditTarget(null);
   };
 
   const handleDelete = (id: string) => {
     if (window.confirm("Delete this category? This cannot be undone.")) {
-      setCats((prev) => prev.filter((c) => c.id !== id));
+      deleteMutation.mutate(id);
     }
   };
+
+  if (isLoading) {
+    return (
+      <SectionCard title="Categories" subtitle="Loading…">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="h-36 rounded-2xl border border-slate-200 bg-slate-100 animate-pulse" />
+          ))}
+        </div>
+      </SectionCard>
+    );
+  }
 
   return (
     <SectionCard
       title="Categories"
-      subtitle={`${cats.length} categories`}
+      subtitle={`${dbCategories.length} categories`}
       action={
         <PrimaryButton icon={Plus} onClick={() => setCreateOpen(true)}>
           Create Category
         </PrimaryButton>
       }
     >
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {cats.map((cat, i) => (
-          <motion.div
-            key={cat.id}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: i * 0.04, ease: "easeOut" }}
-            className="group relative rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
-          >
-            {/* Actions menu */}
-            <div className="absolute right-3 top-3">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
-                    <MoreVertical className="h-4 w-4" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-36">
-                  <DropdownMenuItem onClick={() => setEditTarget(cat)}>
-                    <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => handleDelete(cat.id)}
-                    className="text-red-600 focus:text-red-600"
-                  >
-                    <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+      {dbCategories.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <Tag className="h-10 w-10 text-slate-300 mb-3" />
+          <p className="text-sm font-medium text-foreground">No categories yet</p>
+          <p className="text-xs text-muted-foreground mt-1">Create your first category to organise products.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {dbCategories.map((cat, i) => {
+            const count = productCountMap[cat.id] ?? 0;
+            const color = cat.color ?? "bg-blue-500";
+            return (
+              <motion.div
+                key={cat.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: i * 0.04, ease: "easeOut" }}
+                className="group relative rounded-2xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+              >
+                {/* Actions menu */}
+                <div className="absolute right-3 top-3">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
+                        <MoreVertical className="h-4 w-4" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-36">
+                      <DropdownMenuItem
+                        onClick={() =>
+                          setEditTarget({
+                            id: cat.id,
+                            name: cat.name,
+                            description: cat.description ?? "",
+                            color,
+                          })
+                        }
+                      >
+                        <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleDelete(cat.id)}
+                        className="text-red-600 focus:text-red-600"
+                        disabled={deleteMutation.isPending}
+                      >
+                        <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
 
-            {/* Icon chip */}
-            <div className={`mb-4 flex h-11 w-11 items-center justify-center rounded-xl ${cat.color}`}>
-              <Tag className="h-5 w-5 text-white" />
-            </div>
+                {/* Icon chip */}
+                <div className={`mb-4 flex h-11 w-11 items-center justify-center rounded-xl ${color}`}>
+                  <Tag className="h-5 w-5 text-white" />
+                </div>
 
-            {/* Name + badge */}
-            <div className="flex items-start justify-between gap-2 pr-6">
-              <h4 className="text-sm font-semibold text-foreground leading-snug">{cat.name}</h4>
-              <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
-                {cat.productCount}
-              </span>
-            </div>
+                {/* Name + badge */}
+                <div className="flex items-start justify-between gap-2 pr-6">
+                  <h4 className="text-sm font-semibold text-foreground leading-snug">{cat.name}</h4>
+                  <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                    {count}
+                  </span>
+                </div>
 
-            {/* Description */}
-            <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{cat.description}</p>
+                {/* Description */}
+                <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{cat.description ?? ""}</p>
 
-            {/* Mini progress bar */}
-            <div className="mt-4">
-              <div className="mb-1 flex items-center justify-between">
-                <span className="text-[10px] text-muted-foreground">Category Analytics</span>
-                <span className="text-[10px] font-semibold text-foreground">{cat.productCount} products</span>
-              </div>
-              <div className="h-1.5 w-full rounded-full bg-slate-100">
-                <div
-                  className={`h-1.5 rounded-full ${cat.color} transition-all duration-500`}
-                  style={{ width: `${(cat.productCount / maxCount) * 100}%` }}
-                />
-              </div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
+                {/* Mini progress bar */}
+                <div className="mt-4">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-[10px] text-muted-foreground">Category Analytics</span>
+                    <span className="text-[10px] font-semibold text-foreground">{count} products</span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-slate-100">
+                    <div
+                      className={`h-1.5 rounded-full ${color} transition-all duration-500`}
+                      style={{ width: `${(count / maxCount) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Create Dialog */}
       <CategoryFormDialog
@@ -250,6 +320,7 @@ export function CategoriesTab() {
         onClose={() => setCreateOpen(false)}
         onSubmit={handleCreate}
         title="Create Category"
+        loading={createMutation.isPending}
       />
 
       {/* Edit Dialog */}
@@ -260,6 +331,7 @@ export function CategoriesTab() {
           initial={{ name: editTarget.name, description: editTarget.description, color: editTarget.color }}
           onSubmit={handleEdit}
           title="Edit Category"
+          loading={updateMutation.isPending}
         />
       )}
     </SectionCard>

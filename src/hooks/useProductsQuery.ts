@@ -13,7 +13,9 @@ import {
   type DbProduct,
   type DbProductInsert,
   type DbProductUpdate,
+  type DbCategory,
   type DbCategoryInsert,
+  type DbSupplier,
   type DbSupplierInsert,
 } from "../services/products";
 
@@ -179,6 +181,55 @@ export function useCreateCategory(businessId: string | null) {
   });
 }
 
+export function useUpdateCategory(businessId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Partial<DbCategoryInsert> }) =>
+      categoriesService.update(id, payload),
+    onMutate: async ({ id, payload }) => {
+      if (!businessId) return;
+      await qc.cancelQueries({ queryKey: categoryKeys.byBusiness(businessId) });
+      const previous = qc.getQueryData<DbCategory[]>(categoryKeys.byBusiness(businessId));
+      qc.setQueryData<DbCategory[]>(categoryKeys.byBusiness(businessId), (old) =>
+        (old ?? []).map((c) => (c.id === id ? { ...c, ...payload } : c))
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (businessId && ctx?.previous) {
+        qc.setQueryData(categoryKeys.byBusiness(businessId), ctx.previous);
+      }
+    },
+    onSettled: () => {
+      if (businessId) qc.invalidateQueries({ queryKey: categoryKeys.byBusiness(businessId) });
+    },
+  });
+}
+
+export function useDeleteCategory(businessId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => categoriesService.delete(id),
+    onMutate: async (id) => {
+      if (!businessId) return;
+      await qc.cancelQueries({ queryKey: categoryKeys.byBusiness(businessId) });
+      const previous = qc.getQueryData<DbCategory[]>(categoryKeys.byBusiness(businessId));
+      qc.setQueryData<DbCategory[]>(categoryKeys.byBusiness(businessId), (old) =>
+        (old ?? []).filter((c) => c.id !== id)
+      );
+      return { previous };
+    },
+    onError: (_err, _id, ctx) => {
+      if (businessId && ctx?.previous) {
+        qc.setQueryData(categoryKeys.byBusiness(businessId), ctx.previous);
+      }
+    },
+    onSettled: () => {
+      if (businessId) qc.invalidateQueries({ queryKey: categoryKeys.byBusiness(businessId) });
+    },
+  });
+}
+
 // ── Suppliers ───────────────────────────────────────────────────────
 
 export function useSuppliers(businessId: string | null) {
@@ -195,6 +246,41 @@ export function useCreateSupplier(businessId: string | null) {
   return useMutation({
     mutationFn: (payload: DbSupplierInsert) => suppliersService.create(payload),
     onSuccess: () => {
+      if (businessId) qc.invalidateQueries({ queryKey: supplierKeys.byBusiness(businessId) });
+    },
+  });
+}
+
+export function useUpdateSupplier(businessId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Partial<DbSupplierInsert> }) =>
+      suppliersService.update(id, payload),
+    onSettled: () => {
+      if (businessId) qc.invalidateQueries({ queryKey: supplierKeys.byBusiness(businessId) });
+    },
+  });
+}
+
+export function useDeleteSupplier(businessId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => suppliersService.delete(id),
+    onMutate: async (id) => {
+      if (!businessId) return;
+      await qc.cancelQueries({ queryKey: supplierKeys.byBusiness(businessId) });
+      const previous = qc.getQueryData<DbSupplier[]>(supplierKeys.byBusiness(businessId));
+      qc.setQueryData<DbSupplier[]>(supplierKeys.byBusiness(businessId), (old) =>
+        (old ?? []).filter((s) => s.id !== id)
+      );
+      return { previous };
+    },
+    onError: (_err, _id, ctx) => {
+      if (businessId && ctx?.previous) {
+        qc.setQueryData(supplierKeys.byBusiness(businessId), ctx.previous);
+      }
+    },
+    onSettled: () => {
       if (businessId) qc.invalidateQueries({ queryKey: supplierKeys.byBusiness(businessId) });
     },
   });
