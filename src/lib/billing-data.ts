@@ -12,7 +12,7 @@ export type PaymentStatus = "paid" | "pending" | "partial" | "overdue";
 export type QuotationStatus = "draft" | "sent" | "accepted" | "rejected" | "expired";
 export type RecurringFrequency = "weekly" | "monthly" | "quarterly" | "yearly";
 export type RecurringStatus = "active" | "paused";
-export type CreditNoteStatus = "issued" | "adjusted" | "refunded";
+export type CreditNoteStatus = "draft" | "issued" | "applied" | "voided";
 export type PaymentTxnStatus = "received" | "pending" | "refunded" | "cancelled";
 export type CustomerType = "retail" | "wholesale" | "distributor" | "corporate" | "government";
 export type DocumentType = "invoice" | "quotation" | "proforma" | "delivery-challan" | "credit-note" | "debit-note" | "recurring";
@@ -86,15 +86,34 @@ export interface Quotation {
   notes: string;
 }
 
+export interface CreditNoteItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  discountPercent: number;
+  gstPercent: number;
+}
+
 export interface CreditNote {
   id: string;
   creditNoteNumber: string;
+  creditNoteDate: string;
   invoiceId: string;
   customerId: string;
-  amount: number;
   reason: string;
+  notes: string;
+  items: CreditNoteItem[];
+  subtotal: number;
+  discountTotal: number;
+  taxTotal: number;
+  grandTotal: number;
+  /** @deprecated use grandTotal */
+  amount: number;
   status: CreditNoteStatus;
   createdDate: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface DebitNote {
@@ -798,36 +817,63 @@ export const debitNotes: DebitNote[] = [
 
 // ── Credit Notes ──────────────────────────────────────────────────
 
-export const creditNotes = [
+export const creditNotes: CreditNote[] = [
   {
     id: "cn1",
     creditNoteNumber: "CN-2026-0011",
+    creditNoteDate: "2026-07-13",
     invoiceId: "inv1",
     customerId: "cu2",
-    amount: 1098,
     reason: "2 units returned — packaging damaged",
-    status: "adjusted" as CreditNoteStatus,
+    notes: "",
+    items: [],
+    subtotal: 1098,
+    discountTotal: 0,
+    taxTotal: 0,
+    grandTotal: 1098,
+    amount: 1098,
+    status: "issued" as CreditNoteStatus,
     createdDate: "2026-07-13",
+    createdAt: "2026-07-13T00:00:00Z",
+    updatedAt: "2026-07-13T00:00:00Z",
   },
   {
     id: "cn2",
     creditNoteNumber: "CN-2026-0012",
+    creditNoteDate: "2026-07-13",
     invoiceId: "inv6",
     customerId: "cu3",
-    amount: 3990,
     reason: "Price correction after billing error",
-    status: "refunded" as CreditNoteStatus,
+    notes: "",
+    items: [],
+    subtotal: 3990,
+    discountTotal: 0,
+    taxTotal: 0,
+    grandTotal: 3990,
+    amount: 3990,
+    status: "applied" as CreditNoteStatus,
     createdDate: "2026-07-13",
+    createdAt: "2026-07-13T00:00:00Z",
+    updatedAt: "2026-07-13T00:00:00Z",
   },
   {
     id: "cn3",
     creditNoteNumber: "CN-2026-0013",
+    creditNoteDate: "2026-07-12",
     invoiceId: "inv9",
     customerId: "cu4",
-    amount: 10999,
     reason: "Product exchanged for different model",
+    notes: "",
+    items: [],
+    subtotal: 10999,
+    discountTotal: 0,
+    taxTotal: 0,
+    grandTotal: 10999,
+    amount: 10999,
     status: "issued" as CreditNoteStatus,
     createdDate: "2026-07-12",
+    createdAt: "2026-07-12T00:00:00Z",
+    updatedAt: "2026-07-12T00:00:00Z",
   },
 ];
 

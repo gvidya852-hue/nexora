@@ -199,18 +199,21 @@ export function PrimaryButton({
   icon: Icon,
   className = "",
   type = "button",
+  disabled = false,
 }: {
   children: ReactNode;
   onClick?: () => void;
   icon?: React.ElementType;
   className?: string;
   type?: "button" | "submit";
+  disabled?: boolean;
 }) {
   return (
     <button
       type={type}
       onClick={onClick}
-      className={`inline-flex items-center gap-2 rounded-xl bg-[image:var(--gradient-brand)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 ${className}`}
+      disabled={disabled}
+      className={`inline-flex items-center gap-2 rounded-xl bg-[image:var(--gradient-brand)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:shadow-sm disabled:hover:translate-y-0 ${className}`}
     >
       {Icon && <Icon className="h-4 w-4" />}
       {children}
