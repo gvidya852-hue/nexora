@@ -9,7 +9,7 @@ import { products, type Product } from "@/lib/inventory-data";
 export type InvoiceStatus = "draft" | "sent" | "paid" | "partial" | "overdue" | "cancelled";
 export type PaymentMode = "cash" | "upi" | "card" | "bank-transfer" | "neft" | "rtgs" | "credit" | "wallet" | "cheque";
 export type PaymentStatus = "paid" | "pending" | "partial" | "overdue";
-export type QuotationStatus = "draft" | "sent" | "accepted" | "rejected" | "expired";
+export type QuotationStatus = "draft" | "sent" | "approved" | "rejected" | "expired" | "converted";
 export type RecurringFrequency = "weekly" | "monthly" | "quarterly" | "yearly";
 export type RecurringStatus = "active" | "paused";
 export type CreditNoteStatus = "draft" | "issued" | "applied" | "voided";
@@ -83,7 +83,17 @@ export interface Quotation {
   createdDate: string;
   expiryDate: string;
   convertedInvoiceId?: string;
+  convertedInvoiceNumber?: string;
+  billingAddress: string;
   notes: string;
+  internalNotes: string;
+  terms: string;
+  subtotal: number;
+  discountTotal: number;
+  taxTotal: number;
+  grandTotal: number;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CreditNoteItem {
@@ -640,8 +650,21 @@ export const invoices: Invoice[] = [
 
 // ── Quotations ────────────────────────────────────────────────────
 
+const _emptyQT = {
+  billingAddress: "",
+  internalNotes: "",
+  terms: "",
+  subtotal: 0,
+  discountTotal: 0,
+  taxTotal: 0,
+  grandTotal: 0,
+  createdAt: "",
+  updatedAt: "",
+};
+
 export const quotations: Quotation[] = [
   {
+    ..._emptyQT,
     id: "qt1",
     quoteNumber: "QUO-2026-0021",
     customerId: "cu5",
@@ -652,10 +675,11 @@ export const quotations: Quotation[] = [
     notes: "Bulk laptop order for new office.",
   },
   {
+    ..._emptyQT,
     id: "qt2",
     quoteNumber: "QUO-2026-0022",
     customerId: "cu7",
-    status: "accepted",
+    status: "converted",
     items: [
       { productId: "p10", quantity: 6, unitPrice: 14999, discountPercent: 2, gstPercent: 18 },
     ],
@@ -665,6 +689,7 @@ export const quotations: Quotation[] = [
     notes: "",
   },
   {
+    ..._emptyQT,
     id: "qt3",
     quoteNumber: "QUO-2026-0023",
     customerId: "cu4",
@@ -677,6 +702,7 @@ export const quotations: Quotation[] = [
     notes: "Awaiting final specs from customer.",
   },
   {
+    ..._emptyQT,
     id: "qt4",
     quoteNumber: "QUO-2026-0024",
     customerId: "cu6",
@@ -687,6 +713,7 @@ export const quotations: Quotation[] = [
     notes: "",
   },
   {
+    ..._emptyQT,
     id: "qt5",
     quoteNumber: "QUO-2026-0025",
     customerId: "cu8",
@@ -697,6 +724,7 @@ export const quotations: Quotation[] = [
     notes: "Customer opted for a different vendor.",
   },
   {
+    ..._emptyQT,
     id: "qt6",
     quoteNumber: "QUO-2026-0026",
     customerId: "cu3",

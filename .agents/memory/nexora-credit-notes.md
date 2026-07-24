@@ -36,3 +36,7 @@ description: Architecture and decisions for the Credit Notes Supabase integratio
 - Added `disabled?: boolean` prop to `src/components/inventory/shared.tsx` PrimaryButton (affects all billing/inventory/CRM UIs that use it)
 
 **Why:** The spec required a Save button that disables during mutation. Since PrimaryButton is a shared primitive, adding `disabled` there is the right fix.
+
+## SecondaryButton onClick limitation
+- `SecondaryButton.onClick` is typed as `() => void` — no event arg. If you need form submit context (e.g. "save draft" vs "send"), use a mutable ref to store intent and call a single `onSubmit` handler on the form element.
+- Do not cast `(e) => ...` to get around this — TypeScript will reject it. Use a `type="submit"` `<button>` styled inline instead if you need two submit modes.
