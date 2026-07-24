@@ -3,6 +3,11 @@
 -- Run this in your Supabase SQL Editor (Dashboard → SQL Editor)
 -- ============================================================
 
+-- Grant schema access (required for newer Supabase projects)
+alter schema public owner to postgres;
+grant usage on schema public to postgres, anon, authenticated, service_role;
+grant all privileges on schema public to postgres;
+
 -- 1. Profiles table
 create table if not exists public.profiles (
   id          uuid primary key references auth.users(id) on delete cascade,
