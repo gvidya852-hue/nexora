@@ -4,9 +4,11 @@
 -- ============================================================
 
 -- Grant schema access (required for newer Supabase projects)
-alter schema public owner to postgres;
-grant usage on schema public to postgres, anon, authenticated, service_role;
-grant all privileges on schema public to postgres;
+-- Run this block first if you get "permission denied for schema public":
+--   grant usage  on schema public to postgres, anon, authenticated, service_role;
+--   grant create on schema public to postgres, authenticated, service_role;
+grant usage  on schema public to postgres, anon, authenticated, service_role;
+grant create on schema public to postgres, authenticated, service_role;
 
 -- 1. Profiles table
 create table if not exists public.profiles (
