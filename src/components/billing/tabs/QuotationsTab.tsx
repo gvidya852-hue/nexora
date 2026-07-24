@@ -1,5 +1,5 @@
 // ── Quotations Tab ─────────────────────────────────────────────────
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   Plus,
@@ -321,7 +321,7 @@ function QuotationForm({
 }) {
   const [form, setForm] = useState<QTFormState>(initial);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const saveAsDraftRef = { current: false };
+  const saveAsDraftRef = useRef(false);
 
   function setField<K extends keyof QTFormState>(k: K, v: QTFormState[K]) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -358,7 +358,7 @@ function QuotationForm({
     "h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-foreground outline-none transition-colors focus:border-[color:var(--brand-electric)] focus:ring-1 focus:ring-[color:var(--brand-electric)]";
 
   return (
-    <form className="space-y-5">
+    <form className="space-y-5" onSubmit={handleSubmit}>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {/* Customer */}
         <div>
