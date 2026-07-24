@@ -476,7 +476,7 @@ create table if not exists public.quotations (
   notes                text,
   internal_notes       text,
   terms                text,
-  converted_invoice_id uuid references public.invoices(id) on delete set null,
+  converted_invoice_id uuid,  -- soft reference to invoices.id (no FK to avoid ordering issues)
   created_by           uuid references auth.users(id) on delete set null,
   created_at           timestamptz not null default now(),
   updated_at           timestamptz not null default now()
