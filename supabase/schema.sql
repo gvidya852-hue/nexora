@@ -368,7 +368,7 @@ create table if not exists public.credit_notes (
   business_id        uuid not null references public.business(id) on delete cascade,
   credit_note_number text not null,
   credit_note_date   date not null default current_date,
-  invoice_id         uuid references public.invoices(id) on delete set null,
+  invoice_id         uuid,  -- soft reference to invoices.id (no FK to avoid ordering issues)
   customer_id        uuid references public.customers(id) on delete set null,
   reason             text not null default '',
   notes              text,
