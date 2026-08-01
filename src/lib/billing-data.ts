@@ -10,8 +10,8 @@ export type InvoiceStatus = "draft" | "sent" | "paid" | "partial" | "overdue" | 
 export type PaymentMode = "cash" | "upi" | "card" | "bank-transfer" | "neft" | "rtgs" | "credit" | "wallet" | "cheque";
 export type PaymentStatus = "paid" | "pending" | "partial" | "overdue";
 export type QuotationStatus = "draft" | "sent" | "approved" | "rejected" | "expired" | "converted";
-export type RecurringFrequency = "weekly" | "monthly" | "quarterly" | "yearly";
-export type RecurringStatus = "active" | "paused";
+export type RecurringFrequency = "daily" | "weekly" | "monthly" | "quarterly" | "half-yearly" | "yearly" | "custom";
+export type RecurringStatus = "active" | "paused" | "completed" | "cancelled" | "expired";
 export type CreditNoteStatus = "draft" | "issued" | "applied" | "voided";
 export type PaymentTxnStatus = "received" | "pending" | "refunded" | "cancelled";
 export type CustomerType = "retail" | "wholesale" | "distributor" | "corporate" | "government";
@@ -163,15 +163,33 @@ export interface DeliveryChallan {
   status: "draft" | "in-transit" | "delivered" | "returned";
 }
 
+export interface RecurringInvoiceItem {
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+  discountPercent: number;
+  gstPercent: number;
+}
+
 export interface RecurringInvoice {
   id: string;
+  seriesNumber?: string;
   templateName: string;
   customerId: string;
   frequency: RecurringFrequency;
-  nextBillingDate: string;
+  customIntervalDays?: number;
   startDate: string;
-  amount: number;
+  endDate?: string;
+  nextBillingDate: string;
+  lastGeneratedDate?: string;
   status: RecurringStatus;
+  currency?: string;
+  notes?: string;
+  terms?: string;
+  items?: RecurringInvoiceItem[];
+  /** Computed grand total across all line items */
+  amount: number;
+  /** Human-readable summary of items (auto-generated) */
   itemsSummary: string;
   invoicesGenerated: number;
 }
