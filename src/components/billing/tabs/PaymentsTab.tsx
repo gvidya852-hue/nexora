@@ -13,16 +13,17 @@ import {
   Percent,
   XCircle,
   Download,
+  Pencil,
+  Trash2,
+  Eye,
+  Loader2,
+  RotateCcw,
+  Ban,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
-  payments as seedPayments,
-  invoices,
-  customers,
-  getCustomer,
-  getInvoice,
   fmtINR,
   fmtDate,
-  invoiceGrandTotal,
   paymentModeLabels,
   type PaymentTxn,
   type PaymentTxnStatus,
@@ -40,30 +41,106 @@ import {
   ModalShell,
   PrimaryButton,
 } from "@/components/billing/shared";
+import { useBusiness } from "@/contexts/BusinessContext";
+import { useCustomers } from "@/hooks/useCustomersQuery";
+import { useInvoices } from "@/hooks/useInvoicesQuery";
+import {
+  usePayments,
+  useCreatePayment,
+  useUpdatePayment,
+  useDeletePayment,
+  useRefundPayment,
+  useVoidPayment,
+} from "@/hooks/usePaymentsQuery";
+import type { Customer } from "@/services/customers";
+import type { Invoice } from "@/lib/billing-data";
 
 const PAGE_SIZE = 8;
 
 // ── Sub-tab type ───────────────────────────────────────────────────
 type SubTab = "all" | "pending" | "received" | "refunded" | "timeline";
 
-// ── All 9 payment modes ────────────────────────────────────────────
+// ── All payment modes ──────────────────────────────────────────────
 const ALL_MODES: PaymentMode[] = [
   "cash", "upi", "card", "bank-transfer", "neft", "rtgs", "credit", "wallet", "cheque",
 ];
 
-// ── Status helpers (shared between Table + Timeline) ──────────────
+// ── Status helpers ────────────────────────────────────────────────
 function statusIcon(status: PaymentTxnStatus) {
-  if (status === "received") return <CheckCircle2 className="h-4 w-4" />;
+  if (status === "received" || status === "completed") return <CheckCircle2 className="h-4 w-4" />;
   if (status === "refunded") return <RefreshCcw className="h-4 w-4" />;
-  if (status === "cancelled") return <XCircle className="h-4 w-4" />;
+  if (status === "cancelled" || status === "voided") return <XCircle className="h-4 w-4" />;
   return <AlertCircle className="h-4 w-4" />;
 }
 
 function statusBg(status: PaymentTxnStatus) {
-  if (status === "received") return "bg-emerald-50 text-emerald-600";
+  if (status === "received" || status === "completed") return "bg-emerald-50 text-emerald-600";
   if (status === "refunded") return "bg-cyan-50 text-cyan-600";
-  if (status === "cancelled") return "bg-slate-100 text-slate-500";
+  if (status === "cancelled" || status === "voided") return "bg-slate-100 text-slate-500";
   return "bg-amber-50 text-amber-600";
+}
+
+// ── Grand total helper (from UI Invoice type) ──────────────────────
+function invoiceOutstanding(inv: Invoice): number {
+  const grandTotal = inv.items.reduce((s, item) => {
+    const line = item.quantity * item.unitPrice * (1 - item.discountPercent / 100);
+    return s + line * (1 + item.gstPercent / 100);
+  }, 0);
+  return Math.max(0, grandTotal - inv.amountPaid);
+}
+
+function invoiceGrandTotalCalc(inv: Invoice): number {
+  return inv.items.reduce((s, item) => {
+    const line = item.quantity * item.unitPrice * (1 - item.discountPercent / 100);
+    return s + line * (1 + item.gstPercent / 100);
+  }, 0);
+}
+
+// ── Export helpers ────────────────────────────────────────────────
+function exportCSV(rows: PaymentTxn[], filename = "payments.csv") {
+  const headers = ["Payment #", "Invoice", "Customer", "Amount", "Mode", "Status", "Date", "Ref", "Notes"];
+  const lines = [
+    headers.join(","),
+    ...rows.map((p) => [
+      p.paymentNumber,
+      p.invoiceNumber ?? p.invoiceId,
+      `"${p.customerName ?? p.customerId}"`,
+      p.amount,
+      paymentModeLabels[p.mode] ?? p.mode,
+      p.status,
+      p.date,
+      p.transactionRef ?? "",
+      `"${p.notes}"`,
+    ].join(",")),
+  ];
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportExcel(rows: PaymentTxn[]) {
+  const headers = ["Payment #", "Invoice", "Customer", "Amount", "Mode", "Status", "Date", "Ref", "Notes"];
+  const lines = [
+    headers.join("\t"),
+    ...rows.map((p) => [
+      p.paymentNumber,
+      p.invoiceNumber ?? p.invoiceId,
+      p.customerName ?? p.customerId,
+      p.amount,
+      paymentModeLabels[p.mode] ?? p.mode,
+      p.status,
+      p.date,
+      p.transactionRef ?? "",
+      p.notes,
+    ].join("\t")),
+  ];
+  const blob = new Blob([lines.join("\n")], { type: "application/vnd.ms-excel" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "payments.xls"; a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── Payment Table ──────────────────────────────────────────────────
@@ -74,6 +151,12 @@ function PaymentTable({
   onPageChange,
   emptyTitle,
   emptySubtitle,
+  onRefund,
+  onVoid,
+  onDelete,
+  onEdit,
+  onPreview,
+  isMutating,
 }: {
   rows: PaymentTxn[];
   page: number;
@@ -81,8 +164,15 @@ function PaymentTable({
   onPageChange: (p: number) => void;
   emptyTitle: string;
   emptySubtitle?: string;
+  onRefund: (p: PaymentTxn) => void;
+  onVoid: (p: PaymentTxn) => void;
+  onDelete: (p: PaymentTxn) => void;
+  onEdit: (p: PaymentTxn) => void;
+  onPreview: (p: PaymentTxn) => void;
+  isMutating: boolean;
 }) {
   const paginated = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const btnCls = "flex h-7 w-7 items-center justify-center rounded-lg transition-colors disabled:opacity-40";
 
   if (rows.length === 0) {
     return <EmptyState icon={CreditCard} title={emptyTitle} subtitle={emptySubtitle} />;
@@ -94,33 +184,19 @@ function PaymentTable({
         <table className="w-full">
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50/60">
-              <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">
-                Payment #
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">
-                Invoice
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">
-                Customer
-              </th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground">
-                Amount
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">
-                Mode
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">
-                Status
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">
-                Date / Time
-              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-muted-foreground">Payment #</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Invoice</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Customer</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground">Amount</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Mode</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Status</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground">Date / Time</th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground">Actions</th>
             </tr>
           </thead>
           <tbody>
             {paginated.map((pay, i) => {
-              const inv = getInvoice(pay.invoiceId);
-              const cust = getCustomer(pay.customerId);
+              const canRefundVoid = pay.status === "received" || pay.status === "completed";
               return (
                 <motion.tr
                   key={pay.id}
@@ -133,13 +209,15 @@ function PaymentTable({
                     {pay.paymentNumber}
                   </td>
                   <td className="px-4 py-3 text-sm text-blue-600 whitespace-nowrap">
-                    {inv?.invoiceNumber ?? pay.invoiceId}
+                    {pay.invoiceNumber ?? pay.invoiceId}
                   </td>
                   <td className="px-4 py-3">
                     <p className="text-sm font-medium text-foreground whitespace-nowrap">
-                      {cust?.name ?? pay.customerId}
+                      {pay.customerName ?? pay.customerId}
                     </p>
-                    {cust?.city && <p className="text-xs text-muted-foreground">{cust.city}</p>}
+                    {pay.customerCity && (
+                      <p className="text-xs text-muted-foreground">{pay.customerCity}</p>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right text-sm font-semibold text-foreground whitespace-nowrap">
                     {fmtINR(pay.amount)}
@@ -153,6 +231,52 @@ function PaymentTable({
                   <td className="px-4 py-3 whitespace-nowrap">
                     <p className="text-sm text-foreground">{fmtDate(pay.date)}</p>
                     <p className="text-xs text-muted-foreground">{pay.time}</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => onPreview(pay)}
+                        className={`${btnCls} text-slate-400 hover:bg-slate-100 hover:text-slate-600`}
+                        title="Preview"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => onEdit(pay)}
+                        className={`${btnCls} text-slate-400 hover:bg-slate-100 hover:text-slate-600`}
+                        title="Edit"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      {canRefundVoid && (
+                        <>
+                          <button
+                            onClick={() => onRefund(pay)}
+                            disabled={isMutating}
+                            className={`${btnCls} text-cyan-500 hover:bg-cyan-50`}
+                            title="Refund"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => onVoid(pay)}
+                            disabled={isMutating}
+                            className={`${btnCls} text-orange-500 hover:bg-orange-50`}
+                            title="Void"
+                          >
+                            <Ban className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={() => onDelete(pay)}
+                        disabled={isMutating}
+                        className={`${btnCls} text-slate-400 hover:bg-red-50 hover:text-red-600`}
+                        title="Delete"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </td>
                 </motion.tr>
               );
@@ -180,8 +304,6 @@ function TransactionTimeline({ payments }: { payments: PaymentTxn[] }) {
   return (
     <div className="space-y-0">
       {sorted.map((pay, i) => {
-        const inv = getInvoice(pay.invoiceId);
-        const cust = getCustomer(pay.customerId);
         const isLast = i === sorted.length - 1;
         return (
           <motion.div
@@ -191,32 +313,23 @@ function TransactionTimeline({ payments }: { payments: PaymentTxn[] }) {
             transition={{ delay: i * 0.04, duration: 0.28 }}
             className="flex items-start gap-4"
           >
-            {/* Timeline spine */}
             <div className="flex flex-col items-center">
-              <div
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${statusBg(pay.status)}`}
-              >
+              <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${statusBg(pay.status)}`}>
                 {statusIcon(pay.status)}
               </div>
-              {!isLast && (
-                <div className="mt-1 w-px flex-1 bg-slate-200" style={{ minHeight: 24 }} />
-              )}
+              {!isLast && <div className="mt-1 w-px flex-1 bg-slate-200" style={{ minHeight: 24 }} />}
             </div>
-
-            {/* Content */}
-            <div className={`flex-1 min-w-0 pb-5 ${isLast ? "" : ""}`}>
+            <div className="flex-1 min-w-0 pb-5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-foreground">
                     {pay.paymentNumber}
                     {pay.notes && (
-                      <span className="ml-2 text-xs font-normal text-muted-foreground">
-                        · {pay.notes}
-                      </span>
+                      <span className="ml-2 text-xs font-normal text-muted-foreground">· {pay.notes}</span>
                     )}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {inv?.invoiceNumber ?? pay.invoiceId} · {cust?.name ?? pay.customerId}
+                    {pay.invoiceNumber ?? pay.invoiceId} · {pay.customerName ?? pay.customerId}
                   </p>
                 </div>
                 <div className="shrink-0 text-right">
@@ -243,51 +356,86 @@ function RecordPaymentModal({
   open,
   onClose,
   onRecord,
+  dbCustomers,
+  dbInvoices,
+  isSaving,
 }: {
   open: boolean;
   onClose: () => void;
-  onRecord: (pay: PaymentTxn) => void;
+  onRecord: (input: {
+    invoiceId: string;
+    customerId: string;
+    amount: number;
+    mode: PaymentMode;
+    date: string;
+    transactionRef?: string;
+    notes?: string;
+    currency?: string;
+  }) => void;
+  dbCustomers: Customer[];
+  dbInvoices: Invoice[];
+  isSaving: boolean;
 }) {
+  const today = new Date().toISOString().slice(0, 10);
   const [customerId, setCustomerId] = useState("");
   const [invoiceId, setInvoiceId] = useState("");
   const [amount, setAmount] = useState("");
   const [mode, setMode] = useState<PaymentMode>("cash");
-  const [date, setDate] = useState("2026-07-13");
+  const [date, setDate] = useState(today);
   const [ref, setRef] = useState("");
   const [notes, setNotes] = useState("");
+  const [currency, setCurrency] = useState("INR");
 
+  // Filter invoices: for selected customer, show only unpaid/partial
   const customerInvoices = useMemo(
-    () => (customerId ? invoices.filter((i) => i.customerId === customerId) : []),
-    [customerId]
+    () =>
+      customerId
+        ? dbInvoices.filter(
+            (inv) =>
+              inv.customerId === customerId &&
+              (inv.paymentStatus === "pending" || inv.paymentStatus === "partial")
+          )
+        : [],
+    [customerId, dbInvoices]
   );
 
+  const outstanding =
+    invoiceId ? (() => {
+      const inv = dbInvoices.find((i) => i.id === invoiceId);
+      return inv ? invoiceOutstanding(inv) : 0;
+    })() : 0;
+
+  function validate(): string | null {
+    if (!customerId) return "Please select a customer.";
+    if (!invoiceId) return "Please select an invoice.";
+    const amt = parseFloat(amount);
+    if (!amount || isNaN(amt) || amt <= 0) return "Amount must be greater than zero.";
+    if (amt > outstanding + 0.01) return `Amount cannot exceed outstanding balance of ${fmtINR(outstanding)}.`;
+    return null;
+  }
+
   function handleSubmit() {
-    if (!customerId || !invoiceId || !amount) return;
-    const num = Math.floor(1100 + Math.random() * 900);
-    const pay: PaymentTxn = {
-      id: `pay-${Date.now()}`,
-      paymentNumber: `PMT-2026-${num}`,
+    const err = validate();
+    if (err) { toast.error(err); return; }
+    onRecord({
       invoiceId,
       customerId,
       amount: parseFloat(amount),
       mode,
-      status: "received",
       date,
-      time: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
-      notes,
       transactionRef: ref || undefined,
-    };
-    onRecord(pay);
-    // reset
-    setCustomerId("");
-    setInvoiceId("");
-    setAmount("");
-    setMode("cash");
-    setDate("2026-07-13");
-    setRef("");
-    setNotes("");
-    onClose();
+      notes: notes || undefined,
+      currency,
+    });
   }
+
+  function reset() {
+    setCustomerId(""); setInvoiceId(""); setAmount("");
+    setMode("cash"); setDate(today); setRef(""); setNotes(""); setCurrency("INR");
+  }
+
+  // Reset when modal opens
+  useMemo(() => { if (open) reset(); }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const labelCls = "block text-xs font-semibold text-slate-600 mb-1";
   const inputCls =
@@ -302,16 +450,11 @@ function RecordPaymentModal({
           <select
             className={inputCls}
             value={customerId}
-            onChange={(e) => {
-              setCustomerId(e.target.value);
-              setInvoiceId("");
-            }}
+            onChange={(e) => { setCustomerId(e.target.value); setInvoiceId(""); setAmount(""); }}
           >
             <option value="">Select customer…</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
+            {dbCustomers.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
         </div>
@@ -324,20 +467,26 @@ function RecordPaymentModal({
             value={invoiceId}
             onChange={(e) => {
               setInvoiceId(e.target.value);
-              const inv = invoices.find((i) => i.id === e.target.value);
-              if (inv) setAmount(String(invoiceGrandTotal(inv)));
+              const inv = dbInvoices.find((i) => i.id === e.target.value);
+              if (inv) setAmount(String(Math.round(invoiceOutstanding(inv))));
             }}
             disabled={!customerId}
           >
-            <option value="">
-              {customerId ? "Select invoice…" : "Select a customer first"}
-            </option>
+            <option value="">{customerId ? "Select invoice…" : "Select a customer first"}</option>
             {customerInvoices.map((inv) => (
               <option key={inv.id} value={inv.id}>
-                {inv.invoiceNumber} — {fmtINR(invoiceGrandTotal(inv))}
+                {inv.invoiceNumber} — Outstanding: {fmtINR(Math.round(invoiceOutstanding(inv)))}
               </option>
             ))}
           </select>
+          {invoiceId && outstanding > 0 && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Outstanding balance: <span className="font-semibold text-foreground">{fmtINR(Math.round(outstanding))}</span>
+            </p>
+          )}
+          {invoiceId && outstanding === 0 && (
+            <p className="mt-1 text-xs text-amber-600">This invoice is fully paid.</p>
+          )}
         </div>
 
         {/* Amount + Mode row */}
@@ -351,19 +500,14 @@ function RecordPaymentModal({
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0"
               min={0}
+              max={outstanding}
             />
           </div>
           <div>
             <label className={labelCls}>Payment Mode *</label>
-            <select
-              className={inputCls}
-              value={mode}
-              onChange={(e) => setMode(e.target.value as PaymentMode)}
-            >
+            <select className={inputCls} value={mode} onChange={(e) => setMode(e.target.value as PaymentMode)}>
               {ALL_MODES.map((m) => (
-                <option key={m} value={m}>
-                  {paymentModeLabels[m]}
-                </option>
+                <option key={m} value={m}>{paymentModeLabels[m]}</option>
               ))}
             </select>
           </div>
@@ -373,12 +517,7 @@ function RecordPaymentModal({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelCls}>Payment Date *</label>
-            <input
-              type="date"
-              className={inputCls}
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
+            <input type="date" className={inputCls} value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
           <div>
             <label className={labelCls}>Transaction Reference</label>
@@ -392,16 +531,28 @@ function RecordPaymentModal({
           </div>
         </div>
 
-        {/* Notes */}
-        <div>
-          <label className={labelCls}>Notes</label>
-          <textarea
-            className={`${inputCls} resize-none`}
-            rows={3}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Optional notes…"
-          />
+        {/* Currency + Notes */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelCls}>Currency</label>
+            <select className={inputCls} value={currency} onChange={(e) => setCurrency(e.target.value)}>
+              <option value="INR">INR — ₹</option>
+              <option value="USD">USD — $</option>
+              <option value="EUR">EUR — €</option>
+              <option value="GBP">GBP — £</option>
+              <option value="AED">AED — د.إ</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>Notes</label>
+            <input
+              type="text"
+              className={inputCls}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Optional notes…"
+            />
+          </div>
         </div>
 
         {/* Actions */}
@@ -414,10 +565,10 @@ function RecordPaymentModal({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={!customerId || !invoiceId || !amount}
-            className="inline-flex items-center gap-2 rounded-xl bg-[image:var(--gradient-brand)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-sm disabled:hover:translate-y-0"
+            disabled={isSaving}
+            className="inline-flex items-center gap-2 rounded-xl bg-[image:var(--gradient-brand)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Record Payment
+            {isSaving ? <><Loader2 className="h-4 w-4 animate-spin" />Saving…</> : "Record Payment"}
           </button>
         </div>
       </div>
@@ -425,66 +576,118 @@ function RecordPaymentModal({
   );
 }
 
-// ── CSV Export helper ──────────────────────────────────────────────
-function exportCSV(rows: PaymentTxn[], filename = "payments.csv") {
-  const headers = ["Payment #", "Invoice", "Customer", "Amount", "Mode", "Status", "Date", "Time", "Ref", "Notes"];
-  const lines = [
-    headers.join(","),
-    ...rows.map((p) => {
-      const inv = getInvoice(p.invoiceId);
-      const cust = getCustomer(p.customerId);
-      return [
-        p.paymentNumber,
-        inv?.invoiceNumber ?? p.invoiceId,
-        `"${cust?.name ?? p.customerId}"`,
-        p.amount,
-        paymentModeLabels[p.mode] ?? p.mode,
-        p.status,
-        p.date,
-        p.time,
-        p.transactionRef ?? "",
-        `"${p.notes}"`,
-      ].join(",");
-    }),
-  ];
-  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+// ── Edit Payment Modal ─────────────────────────────────────────────
+function EditPaymentModal({
+  open,
+  onClose,
+  payment,
+  onSave,
+  isSaving,
+}: {
+  open: boolean;
+  onClose: () => void;
+  payment: PaymentTxn;
+  onSave: (input: { mode: PaymentMode; date: string; transactionRef?: string; notes?: string }) => void;
+  isSaving: boolean;
+}) {
+  const [mode, setMode] = useState<PaymentMode>(payment.mode);
+  const [date, setDate] = useState(payment.date);
+  const [ref, setRef] = useState(payment.transactionRef ?? "");
+  const [notes, setNotes] = useState(payment.notes);
+
+  const labelCls = "block text-xs font-semibold text-slate-600 mb-1";
+  const inputCls =
+    "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[color:var(--brand-electric)] focus:border-transparent transition";
+
+  return (
+    <ModalShell open={open} onClose={onClose} title="Edit Payment">
+      <div className="space-y-4">
+        <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm">
+          <p className="font-semibold text-foreground">{payment.paymentNumber}</p>
+          <p className="text-xs text-muted-foreground">
+            {payment.invoiceNumber ?? payment.invoiceId} · {payment.customerName ?? payment.customerId} · {fmtINR(payment.amount)}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelCls}>Payment Mode</label>
+            <select className={inputCls} value={mode} onChange={(e) => setMode(e.target.value as PaymentMode)}>
+              {ALL_MODES.map((m) => <option key={m} value={m}>{paymentModeLabels[m]}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className={labelCls}>Payment Date</label>
+            <input type="date" className={inputCls} value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+        </div>
+
+        <div>
+          <label className={labelCls}>Transaction Reference</label>
+          <input type="text" className={inputCls} value={ref} onChange={(e) => setRef(e.target.value)} placeholder="Optional" />
+        </div>
+
+        <div>
+          <label className={labelCls}>Notes</label>
+          <textarea className={`${inputCls} resize-none`} rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes…" />
+        </div>
+
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <button onClick={onClose} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={() => onSave({ mode, date, transactionRef: ref || undefined, notes: notes || undefined })}
+            disabled={isSaving}
+            className="inline-flex items-center gap-2 rounded-xl bg-[image:var(--gradient-brand)] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:shadow-md disabled:opacity-50"
+          >
+            {isSaving ? <><Loader2 className="h-4 w-4 animate-spin" />Saving…</> : "Save Changes"}
+          </button>
+        </div>
+      </div>
+    </ModalShell>
+  );
 }
 
-function exportExcel(rows: PaymentTxn[]) {
-  // Export as TSV with .xls extension (opens in Excel)
-  const headers = ["Payment #", "Invoice", "Customer", "Amount", "Mode", "Status", "Date", "Time", "Ref", "Notes"];
-  const lines = [
-    headers.join("\t"),
-    ...rows.map((p) => {
-      const inv = getInvoice(p.invoiceId);
-      const cust = getCustomer(p.customerId);
-      return [
-        p.paymentNumber,
-        inv?.invoiceNumber ?? p.invoiceId,
-        cust?.name ?? p.customerId,
-        p.amount,
-        paymentModeLabels[p.mode] ?? p.mode,
-        p.status,
-        p.date,
-        p.time,
-        p.transactionRef ?? "",
-        p.notes,
-      ].join("\t");
-    }),
-  ];
-  const blob = new Blob([lines.join("\n")], { type: "application/vnd.ms-excel" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "payments.xls";
-  a.click();
-  URL.revokeObjectURL(url);
+// ── Preview Modal ──────────────────────────────────────────────────
+function PreviewModal({ open, onClose, payment }: { open: boolean; onClose: () => void; payment: PaymentTxn }) {
+  const labelCls = "text-xs text-muted-foreground";
+  const valueCls = "text-sm font-semibold text-foreground";
+  const row = (label: string, value: string | undefined) =>
+    value ? (
+      <div key={label}>
+        <p className={labelCls}>{label}</p>
+        <p className={valueCls}>{value}</p>
+      </div>
+    ) : null;
+
+  return (
+    <ModalShell open={open} onClose={onClose} title="Payment Details">
+      <div className="space-y-4 text-sm">
+        <div className="grid grid-cols-2 gap-x-8 gap-y-3 rounded-xl bg-slate-50 p-4">
+          {row("Payment Number", payment.paymentNumber)}
+          {row("Invoice", payment.invoiceNumber ?? payment.invoiceId)}
+          {row("Customer", payment.customerName ?? payment.customerId)}
+          {row("Amount", fmtINR(payment.amount))}
+          {row("Currency", payment.currency ?? "INR")}
+          {row("Mode", paymentModeLabels[payment.mode] ?? payment.mode)}
+          {row("Date", fmtDate(payment.date))}
+          {row("Time", payment.time)}
+          <div>
+            <p className={labelCls}>Status</p>
+            <BillingStatusPill status={payment.status} />
+          </div>
+          {row("Reference", payment.transactionRef)}
+          {row("Notes", payment.notes || undefined)}
+        </div>
+        <div className="flex justify-end pt-2">
+          <button onClick={onClose} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+            Close
+          </button>
+        </div>
+      </div>
+    </ModalShell>
+  );
 }
 
 // ── Payment Method Analytics Card ─────────────────────────────────
@@ -502,7 +705,6 @@ function PaymentMethodBreakdown({ payments }: { payments: PaymentTxn[] }) {
   }, [payments]);
 
   const maxTotal = breakdown.reduce((m, b) => Math.max(m, b.total), 0);
-
   if (breakdown.length === 0) return null;
 
   return (
@@ -517,9 +719,7 @@ function PaymentMethodBreakdown({ payments }: { payments: PaymentTxn[] }) {
           const pct = maxTotal > 0 ? (b.total / maxTotal) * 100 : 0;
           return (
             <div key={b.mode} className="flex items-center gap-3">
-              <div className="w-28 shrink-0">
-                <PaymentModeBadge mode={b.mode} />
-              </div>
+              <div className="w-28 shrink-0"><PaymentModeBadge mode={b.mode} /></div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs text-muted-foreground">{b.count} txn{b.count !== 1 ? "s" : ""}</span>
@@ -542,55 +742,82 @@ function PaymentMethodBreakdown({ payments }: { payments: PaymentTxn[] }) {
   );
 }
 
+// ── Loading skeleton ───────────────────────────────────────────────
+function TableSkeleton() {
+  return (
+    <div className="space-y-3 p-6">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="h-12 w-full animate-pulse rounded-xl bg-slate-100" />
+      ))}
+    </div>
+  );
+}
+
 // ── Main Component ─────────────────────────────────────────────────
 export function PaymentsTab() {
-  const [payments, setPayments] = useState<PaymentTxn[]>(seedPayments);
+  const { business } = useBusiness();
+  const businessId = business?.id ?? null;
+
+  const paymentsQuery = usePayments(businessId);
+  const { data: dbCustomers = [] } = useCustomers(businessId);
+  const invoicesQuery = useInvoices(businessId);
+  const dbInvoices = invoicesQuery.data ?? [];
+
+  const createMutation = useCreatePayment(businessId);
+  const updateMutation = useUpdatePayment(businessId);
+  const deleteMutation = useDeletePayment(businessId);
+  const refundMutation = useRefundPayment(businessId);
+  const voidMutation = useVoidPayment(businessId);
+
+  const payments = paymentsQuery.data ?? [];
+
+  // ── UI state ──────────────────────────────────────────────────
   const [search, setSearch] = useState("");
   const [modeFilter, setModeFilter] = useState("all");
   const [activeSubTab, setActiveSubTab] = useState<SubTab>("all");
   const [page, setPage] = useState(1);
   const [showRecordModal, setShowRecordModal] = useState(false);
+  const [editTarget, setEditTarget] = useState<PaymentTxn | null>(null);
+  const [previewTarget, setPreviewTarget] = useState<PaymentTxn | null>(null);
 
-  // Stats
-  const receivedPayments = payments.filter((p) => p.status === "received");
+  const isMutating =
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    deleteMutation.isPending ||
+    refundMutation.isPending ||
+    voidMutation.isPending;
+
+  // ── Stats ─────────────────────────────────────────────────────
+  const receivedPayments = payments.filter((p) => p.status === "received" || p.status === "completed");
   const totalReceived = receivedPayments.reduce((s, p) => s + p.amount, 0);
   const receivedCount = receivedPayments.length;
-  const totalPending = payments
-    .filter((p) => p.status === "pending")
-    .reduce((s, p) => s + p.amount, 0);
-  const totalRefunded = payments
-    .filter((p) => p.status === "refunded")
-    .reduce((s, p) => s + p.amount, 0);
+  const totalPending = payments.filter((p) => p.status === "pending").reduce((s, p) => s + p.amount, 0);
+  const totalRefunded = payments.filter((p) => p.status === "refunded").reduce((s, p) => s + p.amount, 0);
   const totalCount = payments.length;
-
-  // Enhanced stats
   const avgPayment = receivedCount > 0 ? totalReceived / receivedCount : 0;
   const collectionDenominator = totalReceived + totalPending;
-  const collectionPct =
-    collectionDenominator > 0
-      ? ((totalReceived / collectionDenominator) * 100).toFixed(0)
-      : "0";
+  const collectionPct = collectionDenominator > 0
+    ? ((totalReceived / collectionDenominator) * 100).toFixed(0)
+    : "0";
 
-  // Filtered for main table
+  // ── Filter ────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return payments.filter((p) => {
-      const inv = getInvoice(p.invoiceId);
-      const cust = getCustomer(p.customerId);
       const matchSearch =
         p.paymentNumber.toLowerCase().includes(q) ||
-        (inv?.invoiceNumber ?? "").toLowerCase().includes(q) ||
-        (cust?.name ?? "").toLowerCase().includes(q) ||
+        (p.invoiceNumber ?? "").toLowerCase().includes(q) ||
+        (p.customerName ?? "").toLowerCase().includes(q) ||
+        (p.transactionRef ?? "").toLowerCase().includes(q) ||
         p.notes.toLowerCase().includes(q);
       const matchMode = modeFilter === "all" || p.mode === modeFilter;
       return matchSearch && matchMode;
     });
   }, [payments, search, modeFilter]);
 
-  // Sub-tab filtered sets
   const byStatus = (status: PaymentTxnStatus) => filtered.filter((p) => p.status === status);
   const pendingRows = byStatus("pending");
-  const receivedRows = byStatus("received");
+  const receivedRows = [...byStatus("received"), ...byStatus("completed")];
   const refundedRows = byStatus("refunded");
 
   const allTotalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -606,72 +833,87 @@ export function PaymentsTab() {
     { id: "timeline", label: "Transaction Timeline" },
   ];
 
-  // Active rows for export
   const exportRows =
-    activeSubTab === "pending"
-      ? pendingRows
-      : activeSubTab === "received"
-        ? receivedRows
-        : activeSubTab === "refunded"
-          ? refundedRows
-          : filtered;
+    activeSubTab === "pending" ? pendingRows
+      : activeSubTab === "received" ? receivedRows
+      : activeSubTab === "refunded" ? refundedRows
+      : filtered;
 
-  function handleRecord(pay: PaymentTxn) {
-    setPayments((prev) => [pay, ...prev]);
-  }
+  // ── Handlers ──────────────────────────────────────────────────
+  const handleRecord = (input: Parameters<typeof createMutation.mutate>[0]) => {
+    createMutation.mutate(input, {
+      onSuccess: () => {
+        toast.success("Payment recorded successfully.");
+        setShowRecordModal(false);
+        setPage(1);
+      },
+      onError: (e: unknown) => toast.error((e as Error).message ?? "Failed to record payment."),
+    });
+  };
+
+  const handleEdit = (input: { mode: PaymentMode; date: string; transactionRef?: string; notes?: string }) => {
+    if (!editTarget) return;
+    updateMutation.mutate(
+      { id: editTarget.id, input },
+      {
+        onSuccess: () => { toast.success("Payment updated."); setEditTarget(null); },
+        onError: (e: unknown) => toast.error((e as Error).message ?? "Failed to update."),
+      }
+    );
+  };
+
+  const handleDelete = (pay: PaymentTxn) => {
+    if (!window.confirm(`Delete payment ${pay.paymentNumber}? This will reverse the invoice balance.`)) return;
+    deleteMutation.mutate(
+      { id: pay.id, invoiceId: pay.invoiceId, amount: pay.amount },
+      {
+        onSuccess: () => toast.success("Payment deleted."),
+        onError: (e: unknown) => toast.error((e as Error).message ?? "Failed to delete."),
+      }
+    );
+  };
+
+  const handleRefund = (pay: PaymentTxn) => {
+    if (!window.confirm(`Refund payment ${pay.paymentNumber} of ${fmtINR(pay.amount)}? This will reduce the invoice's paid amount.`)) return;
+    refundMutation.mutate(
+      { id: pay.id, invoiceId: pay.invoiceId, amount: pay.amount },
+      {
+        onSuccess: () => toast.success("Payment refunded."),
+        onError: (e: unknown) => toast.error((e as Error).message ?? "Failed to refund."),
+      }
+    );
+  };
+
+  const handleVoid = (pay: PaymentTxn) => {
+    if (!window.confirm(`Void payment ${pay.paymentNumber}? This will reverse the invoice balance.`)) return;
+    voidMutation.mutate(
+      { id: pay.id, invoiceId: pay.invoiceId, amount: pay.amount },
+      {
+        onSuccess: () => toast.success("Payment voided."),
+        onError: (e: unknown) => toast.error((e as Error).message ?? "Failed to void."),
+      }
+    );
+  };
+
+  const tableProps = {
+    onRefund: handleRefund,
+    onVoid: handleVoid,
+    onDelete: handleDelete,
+    onEdit: setEditTarget,
+    onPreview: setPreviewTarget,
+    isMutating,
+  };
 
   return (
     <div className="space-y-6">
-      {/* Stat Strip — 6 tiles */}
+      {/* Stat Strip */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        <StatTile
-          label="Total Received"
-          value={fmtINR(totalReceived)}
-          icon={CheckCircle2}
-          bg="bg-emerald-50"
-          iconColor="text-emerald-600"
-          index={0}
-        />
-        <StatTile
-          label="Pending"
-          value={fmtINR(totalPending)}
-          icon={Clock}
-          bg="bg-amber-50"
-          iconColor="text-amber-600"
-          index={1}
-        />
-        <StatTile
-          label="Refunded"
-          value={fmtINR(totalRefunded)}
-          icon={RefreshCcw}
-          bg="bg-cyan-50"
-          iconColor="text-cyan-600"
-          index={2}
-        />
-        <StatTile
-          label="Transactions"
-          value={String(totalCount)}
-          icon={IndianRupee}
-          bg="bg-blue-50"
-          iconColor="text-blue-600"
-          index={3}
-        />
-        <StatTile
-          label="Avg Payment"
-          value={fmtINR(avgPayment)}
-          icon={BarChart2}
-          bg="bg-purple-50"
-          iconColor="text-purple-600"
-          index={4}
-        />
-        <StatTile
-          label="Collection %"
-          value={`${collectionPct}%`}
-          icon={Percent}
-          bg="bg-sky-50"
-          iconColor="text-sky-600"
-          index={5}
-        />
+        <StatTile label="Total Received" value={fmtINR(totalReceived)} icon={CheckCircle2} bg="bg-emerald-50" iconColor="text-emerald-600" index={0} />
+        <StatTile label="Pending" value={fmtINR(totalPending)} icon={Clock} bg="bg-amber-50" iconColor="text-amber-600" index={1} />
+        <StatTile label="Refunded" value={fmtINR(totalRefunded)} icon={RefreshCcw} bg="bg-cyan-50" iconColor="text-cyan-600" index={2} />
+        <StatTile label="Transactions" value={String(totalCount)} icon={IndianRupee} bg="bg-blue-50" iconColor="text-blue-600" index={3} />
+        <StatTile label="Avg Payment" value={fmtINR(Math.round(avgPayment))} icon={BarChart2} bg="bg-purple-50" iconColor="text-purple-600" index={4} />
+        <StatTile label="Collection %" value={`${collectionPct}%`} icon={Percent} bg="bg-sky-50" iconColor="text-sky-600" index={5} />
       </div>
 
       {/* Main Card */}
@@ -681,10 +923,7 @@ export function PaymentsTab() {
           {subTabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => {
-                setActiveSubTab(tab.id);
-                setPage(1);
-              }}
+              onClick={() => { setActiveSubTab(tab.id); setPage(1); }}
               className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors ${
                 activeSubTab === tab.id
                   ? "bg-[image:var(--gradient-brand)] text-white shadow-sm"
@@ -693,16 +932,12 @@ export function PaymentsTab() {
             >
               {tab.label}
               {tab.count !== undefined && (
-                <span
-                  className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${activeSubTab === tab.id ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"}`}
-                >
+                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${activeSubTab === tab.id ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"}`}>
                   {tab.count}
                 </span>
               )}
             </button>
           ))}
-
-          {/* Record Payment button */}
           <div className="ml-auto flex items-center gap-2">
             <PrimaryButton onClick={() => setShowRecordModal(true)} icon={Plus}>
               Record Payment
@@ -710,24 +945,18 @@ export function PaymentsTab() {
           </div>
         </div>
 
-        {/* Toolbar: search + filter + export — only for table views */}
+        {/* Toolbar */}
         {activeSubTab !== "timeline" && (
           <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-6 py-3">
             <SearchInput
               value={search}
-              onChange={(v) => {
-                setSearch(v);
-                setPage(1);
-              }}
+              onChange={(v) => { setSearch(v); setPage(1); }}
               placeholder="Search payments…"
               className="w-48"
             />
             <Select
               value={modeFilter}
-              onChange={(v) => {
-                setModeFilter(v);
-                setPage(1);
-              }}
+              onChange={(v) => { setModeFilter(v); setPage(1); }}
               options={[
                 { value: "all", label: "All Modes" },
                 { value: "cash", label: "Cash" },
@@ -761,68 +990,64 @@ export function PaymentsTab() {
         )}
 
         {/* Sub-tab content */}
-        {activeSubTab === "all" && (
-          <PaymentTable
-            rows={filtered}
-            page={page}
-            totalPages={allTotalPages}
-            onPageChange={setPage}
-            emptyTitle="No payments found"
-            emptySubtitle="Try adjusting your search or mode filter."
-          />
-        )}
-
-        {activeSubTab === "pending" && (
-          <PaymentTable
-            rows={pendingRows}
-            page={page}
-            totalPages={pendingTotalPages}
-            onPageChange={setPage}
-            emptyTitle="No pending payments"
-            emptySubtitle="All payments have been settled."
-          />
-        )}
-
-        {activeSubTab === "received" && (
-          <PaymentTable
-            rows={receivedRows}
-            page={page}
-            totalPages={receivedTotalPages}
-            onPageChange={setPage}
-            emptyTitle="No received payments"
-          />
-        )}
-
-        {activeSubTab === "refunded" && (
-          <PaymentTable
-            rows={refundedRows}
-            page={page}
-            totalPages={refundedTotalPages}
-            onPageChange={setPage}
-            emptyTitle="No refunds found"
-            emptySubtitle="No refunded transactions recorded yet."
-          />
-        )}
-
-        {activeSubTab === "timeline" && (
-          <div className="p-6">
-            <p className="mb-6 text-xs text-muted-foreground">
-              All transactions sorted by date · most recent first
-            </p>
-            <TransactionTimeline payments={payments} />
-          </div>
+        {paymentsQuery.isLoading ? (
+          <TableSkeleton />
+        ) : (
+          <>
+            {activeSubTab === "all" && (
+              <PaymentTable rows={filtered} page={page} totalPages={allTotalPages} onPageChange={setPage} emptyTitle="No payments found" emptySubtitle="Try adjusting your search or mode filter." {...tableProps} />
+            )}
+            {activeSubTab === "pending" && (
+              <PaymentTable rows={pendingRows} page={page} totalPages={pendingTotalPages} onPageChange={setPage} emptyTitle="No pending payments" emptySubtitle="All payments have been settled." {...tableProps} />
+            )}
+            {activeSubTab === "received" && (
+              <PaymentTable rows={receivedRows} page={page} totalPages={receivedTotalPages} onPageChange={setPage} emptyTitle="No received payments" {...tableProps} />
+            )}
+            {activeSubTab === "refunded" && (
+              <PaymentTable rows={refundedRows} page={page} totalPages={refundedTotalPages} onPageChange={setPage} emptyTitle="No refunds found" emptySubtitle="No refunded transactions recorded yet." {...tableProps} />
+            )}
+            {activeSubTab === "timeline" && (
+              <div className="p-6">
+                <p className="mb-6 text-xs text-muted-foreground">
+                  All transactions sorted by date · most recent first
+                </p>
+                <TransactionTimeline payments={payments} />
+              </div>
+            )}
+          </>
         )}
       </SectionCard>
 
       {/* Payment Method Breakdown */}
       <PaymentMethodBreakdown payments={payments} />
 
-      {/* Record Payment Modal */}
+      {/* Modals */}
       <RecordPaymentModal
         open={showRecordModal}
         onClose={() => setShowRecordModal(false)}
         onRecord={handleRecord}
+        dbCustomers={dbCustomers}
+        dbInvoices={dbInvoices}
+        isSaving={createMutation.isPending}
       />
+
+      {editTarget && (
+        <EditPaymentModal
+          open={!!editTarget}
+          onClose={() => setEditTarget(null)}
+          payment={editTarget}
+          onSave={handleEdit}
+          isSaving={updateMutation.isPending}
+        />
+      )}
+
+      {previewTarget && (
+        <PreviewModal
+          open={!!previewTarget}
+          onClose={() => setPreviewTarget(null)}
+          payment={previewTarget}
+        />
+      )}
     </div>
   );
 }

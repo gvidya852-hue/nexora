@@ -7,3 +7,4 @@
 - [Nexora Credit Notes module](nexora-credit-notes.md) — fully Supabase-backed; schema, service, hook patterns; PrimaryButton now accepts disabled prop; SecondaryButton onClick limitations.
 - [Nexora Quotations module](nexora-quotations.md) — fully Supabase-backed; QT-YYYY-#### numbers; convert-to-invoice; product search by name/SKU/barcode; useBusiness().business?.id pattern.
 - [Nexora Recurring Invoices module](nexora-recurring-module.md) — fully Supabase-backed; schema in schema_recurring.sql (not yet applied); generateInvoice() ready for scheduler; DbProduct uses tax_rate not gst_percent.
+- [Nexora Payments module](nexora-payments-module.md) — fully Supabase-backed; schema in schema_payments.sql (not yet applied); auto-updates invoice amount_paid + payment_status on create/refund/void/delete.

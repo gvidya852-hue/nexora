@@ -13,7 +13,7 @@ export type QuotationStatus = "draft" | "sent" | "approved" | "rejected" | "expi
 export type RecurringFrequency = "daily" | "weekly" | "monthly" | "quarterly" | "half-yearly" | "yearly" | "custom";
 export type RecurringStatus = "active" | "paused" | "completed" | "cancelled" | "expired";
 export type CreditNoteStatus = "draft" | "issued" | "applied" | "voided";
-export type PaymentTxnStatus = "received" | "pending" | "refunded" | "cancelled";
+export type PaymentTxnStatus = "received" | "pending" | "refunded" | "cancelled" | "voided" | "failed" | "completed";
 export type CustomerType = "retail" | "wholesale" | "distributor" | "corporate" | "government";
 export type DocumentType = "invoice" | "quotation" | "proforma" | "delivery-challan" | "credit-note" | "debit-note" | "recurring";
 
@@ -206,6 +206,11 @@ export interface PaymentTxn {
   time: string;
   notes: string;
   transactionRef?: string;
+  // Populated from DB joins for display
+  invoiceNumber?: string;
+  customerName?: string;
+  customerCity?: string;
+  currency?: string;
 }
 
 export interface InvoiceTemplate {
