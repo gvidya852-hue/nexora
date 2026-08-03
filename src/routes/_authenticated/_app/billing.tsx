@@ -160,7 +160,9 @@ function BillingPage() {
           {activeTab === "recurring" && <RecurringTab />}
           {activeTab === "payments" && <PaymentsTab />}
           {activeTab === "reports" && <ReportsTab />}
-          {activeTab === "documents" && <DocumentsTab />}
+          {activeTab === "documents" && (
+            <DocumentsTab onNavigate={(id) => setActiveTab(id as TabId)} />
+          )}
           {activeTab === "templates" && <TemplatesTab />}
           {activeTab === "settings" && <SettingsTab />}
         </div>

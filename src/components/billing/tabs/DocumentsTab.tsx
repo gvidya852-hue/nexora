@@ -105,30 +105,29 @@ interface DocTypeCard {
   comingSoon?: boolean;
 }
 
-function DocCard({ doc, index }: { doc: DocTypeCard; index: number }) {
+function DocCard({
+  doc,
+  index,
+  onNavigate,
+}: {
+  doc: DocTypeCard;
+  index: number;
+  onNavigate?: (tabId: string) => void;
+}) {
   const Icon = doc.icon;
 
   const handleViewAll = () => {
     if (doc.comingSoon) return;
-    if (doc.viewTab) {
-      alert(`Navigate to ${doc.label} — handled by billing route tab switching`);
-    } else {
-      alert(`Navigate to ${doc.label} — handled by billing route tab switching`);
+    if (doc.viewTab && onNavigate) {
+      onNavigate(doc.viewTab);
     }
   };
 
   const handleCreate = () => {
     if (doc.comingSoon) return;
-    const descriptions: Record<string, string> = {
-      invoices: "Opens the invoice builder with GST calculation",
-      quotations: "Creates a new customer quotation",
-      proforma: "Creates a proforma invoice for customer approval",
-      "delivery-challans": "Generates a delivery challan for dispatch",
-      "credit-notes": "Issues a credit note against an existing invoice",
-      "debit-notes": "Raises a debit note for supplier adjustments",
-      recurring: "Sets up a new recurring invoice schedule",
-    };
-    alert(`Create ${doc.label} — ${descriptions[doc.id] ?? "Opens document creator"}`);
+    if (doc.viewTab && onNavigate) {
+      onNavigate(doc.viewTab);
+    }
   };
 
   return (
@@ -1068,7 +1067,7 @@ function FileManager({ businessId }: { businessId: string }) {
 }
 
 // ── Main Component ─────────────────────────────────────────────────
-export function DocumentsTab() {
+export function DocumentsTab({ onNavigate }: { onNavigate?: (tabId: string) => void }) {
   const { business } = useBusiness();
   const businessId = business?.id ?? null;
 
@@ -1179,7 +1178,7 @@ export function DocumentsTab() {
       {/* Document type grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {docTypes.map((doc, i) => (
-          <DocCard key={doc.id} doc={doc} index={i} />
+          <DocCard key={doc.id} doc={doc} index={i} onNavigate={onNavigate} />
         ))}
       </div>
 
