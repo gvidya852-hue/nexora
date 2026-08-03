@@ -9,3 +9,4 @@
 - [Nexora Documents module](nexora-documents-module.md) — file upload/management backed by billing-documents storage bucket; documents table with uploaded_by_email; useEffect required for dialog side-effects.
 - [Nexora Recurring Invoices module](nexora-recurring-module.md) — fully Supabase-backed; schema in schema_recurring.sql (not yet applied); generateInvoice() ready for scheduler; DbProduct uses tax_rate not gst_percent.
 - [Nexora Payments module](nexora-payments-module.md) — fully Supabase-backed; schema in schema_payments.sql (not yet applied); auto-updates invoice amount_paid + payment_status on create/refund/void/delete.
+- [Nexora Templates module](nexora-templates-module.md) — fully Supabase-backed; schema in schema_templates.sql; supabase is a Proxy object (not callable), use supabase.from() not supabase().from().
