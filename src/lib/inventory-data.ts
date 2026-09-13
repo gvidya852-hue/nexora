@@ -56,6 +56,11 @@ export interface Brand {
   productCount: number;
   logoInitial: string;
   color: string;
+  status: "active" | "inactive";
+  website?: string;
+  logoUrl?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Unit {
@@ -261,19 +266,6 @@ export const categories: Category[] = [
   { id: "c6", name: "Printers & Scanners", description: "Printing and scanning equipment", productCount: 2, color: "bg-cyan-500" },
   { id: "c7", name: "Power & Backup", description: "UPS units and power accessories", productCount: 1, color: "bg-orange-500" },
   { id: "c8", name: "Office Furniture", description: "Chairs, desks, and workspace furniture", productCount: 2, color: "bg-pink-500" },
-];
-
-// ── Brands ────────────────────────────────────────────────────────
-
-export const brands: Brand[] = [
-  { id: "b1", name: "Dell", description: "Laptops and desktop computers", productCount: 2, logoInitial: "D", color: "bg-blue-600" },
-  { id: "b2", name: "HP", description: "Printers, laptops, and scanners", productCount: 3, logoInitial: "H", color: "bg-sky-600" },
-  { id: "b3", name: "Logitech", description: "Keyboards, mice, and peripherals", productCount: 3, logoInitial: "L", color: "bg-slate-700" },
-  { id: "b4", name: "Samsung", description: "Monitors and storage devices", productCount: 2, logoInitial: "S", color: "bg-indigo-600" },
-  { id: "b5", name: "TP-Link", description: "Networking equipment", productCount: 1, logoInitial: "T", color: "bg-emerald-600" },
-  { id: "b6", name: "CP Plus", description: "CCTV and surveillance", productCount: 1, logoInitial: "C", color: "bg-red-600" },
-  { id: "b7", name: "APC", description: "UPS and power backup", productCount: 1, logoInitial: "A", color: "bg-orange-600" },
-  { id: "b8", name: "Godrej Interio", description: "Office furniture", productCount: 2, logoInitial: "G", color: "bg-pink-600" },
 ];
 
 // ── Suppliers ─────────────────────────────────────────────────────
@@ -634,7 +626,6 @@ export const activityLog: ActivityLog[] = [
 // ── Helpers ───────────────────────────────────────────────────────
 
 export function getCategory(id: string) { return categories.find((c) => c.id === id); }
-export function getBrand(id: string) { return brands.find((b) => b.id === id); }
 export function getUnit(id: string) { return units.find((u) => u.id === id); }
 export function getSupplier(id: string) { return suppliers.find((s) => s.id === id); }
 export function getProduct(id: string) { return products.find((p) => p.id === id); }

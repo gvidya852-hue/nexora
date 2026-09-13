@@ -206,6 +206,43 @@ create trigger set_suppliers_updated_at
 -- Inventory: Products
 -- ============================================================
 
+-- Inventory: Brands
+create table if not exists public.brands (
+  id           uuid primary key default gen_random_uuid(),
+  business_id  uuid not null references public.business(id) on delete cascade,
+  name         text not null,
+  description  text,
+  logo_url     text,
+  logo_initial text,
+  logo_color   text not null default 'bg-blue-500',
+  website      text,
+  status       text not null default 'active'
+                 check (status in ('active', 'inactive')),
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  unique (id, business_id)
+);
+
+create unique index if not exists brands_business_name_idx
+  on public.brands (business_id, lower(name));
+
+alter table public.brands enable row level security;
+
+drop policy if exists "brands: owner full access" on public.brands;
+create policy "brands: owner full access"
+  on public.brands for all
+  using (
+    exists (select 1 from public.business where id = business_id and owner_id = auth.uid())
+  )
+  with check (
+    exists (select 1 from public.business where id = business_id and owner_id = auth.uid())
+  );
+
+drop trigger if exists set_brands_updated_at on public.brands;
+create trigger set_brands_updated_at
+  before update on public.brands
+  for each row execute procedure public.set_updated_at();
+
 create table if not exists public.products (
   id             uuid primary key default gen_random_uuid(),
   business_id    uuid not null,
@@ -230,7 +267,7 @@ create table if not exists public.products (
   mrp            numeric(12,2) not null default 0,
   cost_price     numeric(12,2) not null default 0,
   hsn_code       text,
-  brand_id       text,
+  brand_id       uuid,
   unit_id        text,
   reorder_qty    integer not null default 0,
   lead_time_days integer not null default 0,
@@ -244,6 +281,8 @@ create table if not exists public.products (
   internal_notes text,
   tags           text[],
   emoji          text not null default '📦',
+  foreign key (brand_id, business_id)
+    references public.brands(id, business_id) on delete restrict,
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );
@@ -272,6 +311,86 @@ drop trigger if exists set_products_updated_at on public.products;
 create trigger set_products_updated_at
   before update on public.products
   for each row execute procedure public.set_updated_at();
+
+-- Paginated brand listing with database-side search, filters, sorting,
+-- and product counts. The function is invoker-security by default, so
+-- brands/products RLS remains in force for authenticated callers.
+create or replace function public.get_brands_page(
+  p_business_id uuid,
+  p_search text default null,
+  p_status text default null,
+  p_has_products boolean default null,
+  p_created_from timestamptz default null,
+  p_sort_by text default 'name',
+  p_sort_direction text default 'asc',
+  p_page integer default 1,
+  p_page_size integer default 8
+)
+returns table (
+  id uuid,
+  business_id uuid,
+  name text,
+  description text,
+  logo_url text,
+  logo_initial text,
+  logo_color text,
+  website text,
+  status text,
+  created_at timestamptz,
+  updated_at timestamptz,
+  product_count bigint,
+  total_count bigint
+)
+language sql
+stable
+as $$
+  with grouped as (
+    select
+      br.id,
+      br.business_id,
+      br.name,
+      br.description,
+      br.logo_url,
+      br.logo_initial,
+      br.logo_color,
+      br.website,
+      br.status,
+      br.created_at,
+      br.updated_at,
+      count(pr.id)::bigint as product_count
+    from public.brands br
+    left join public.products pr
+      on pr.brand_id = br.id
+     and pr.business_id = br.business_id
+    where br.business_id = p_business_id
+      and (p_search is null or (
+        br.name ilike '%' || trim(p_search) || '%'
+        or coalesce(br.description, '') ilike '%' || trim(p_search) || '%'
+      ))
+      and (p_status is null or br.status = p_status)
+      and (p_created_from is null or br.created_at >= p_created_from)
+    group by br.id
+    having p_has_products is null or ((count(pr.id) > 0) = p_has_products)
+  ),
+  counted as (
+    select grouped.*, count(*) over ()::bigint as total_count
+    from grouped
+  )
+  select *
+  from counted
+  order by
+    case when p_sort_by = 'name' and p_sort_direction = 'asc' then name end asc,
+    case when p_sort_by = 'name' and p_sort_direction = 'desc' then name end desc,
+    case when p_sort_by = 'created_at' and p_sort_direction = 'asc' then created_at end asc,
+    case when p_sort_by = 'created_at' and p_sort_direction = 'desc' then created_at end desc,
+    case when p_sort_by = 'updated_at' and p_sort_direction = 'asc' then updated_at end asc,
+    case when p_sort_by = 'updated_at' and p_sort_direction = 'desc' then updated_at end desc,
+    case when p_sort_by = 'product_count' and p_sort_direction = 'asc' then product_count end asc,
+    case when p_sort_by = 'product_count' and p_sort_direction = 'desc' then product_count end desc,
+    name asc
+  limit greatest(1, least(100, p_page_size))
+  offset greatest(0, p_page - 1) * greatest(1, least(100, p_page_size));
+$$;
 
 -- ============================================================
 -- Inventory: Movements

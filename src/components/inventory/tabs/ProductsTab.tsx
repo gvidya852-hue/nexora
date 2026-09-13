@@ -45,9 +45,7 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  brands,
   units,
-  getBrand,
   getUnit,
   getStockStatus,
   fmtINR,
@@ -76,20 +74,23 @@ import {
   useDeleteManyProducts,
   useBulkUpdateProducts,
 } from "@/hooks/useProductsQuery";
+import { useBrands, useBrandOptions } from "@/hooks/useBrandsQuery";
 import {
   dbToProduct,
   productFormToDb,
   type DbCategory,
   type DbSupplier,
 } from "@/services/products";
+import type { DbBrand } from "@/services/brands";
 
 // ── Constants ──────────────────────────────────────────────────────
 const PAGE_SIZE = 8;
 
 // ── Helpers ────────────────────────────────────────────────────────
-function buildCSV(rows: Product[], cats: DbCategory[], sups: DbSupplier[]): string {
+function buildCSV(rows: Product[], cats: DbCategory[], sups: DbSupplier[], dbBrands: DbBrand[]): string {
   const catMap = new Map(cats.map((c) => [c.id, c.name]));
   const supMap = new Map(sups.map((s) => [s.id, s.name]));
+  const brandMap = new Map(dbBrands.map((b) => [b.id, b.name]));
   const headers = [
     "SKU", "Name", "Barcode", "Category", "Brand", "Supplier",
     "Purchase Price", "Selling Price", "MRP", "Cost Price", "Tax %", "HSN Code",
@@ -103,7 +104,7 @@ function buildCSV(rows: Product[], cats: DbCategory[], sups: DbSupplier[]): stri
       [
         p.sku, p.name, p.barcode,
         catMap.get(p.categoryId) ?? p.categoryId,
-        getBrand(p.brandId)?.name ?? p.brandId,
+        brandMap.get(p.brandId) ?? p.brandId,
         supMap.get(p.supplierId) ?? p.supplierId,
         p.purchasePrice, p.sellingPrice, p.mrp, p.costPrice, p.taxPercent, p.hsnCode,
         p.currentStock, p.minStock, p.maxStock, p.reorderQty, p.leadTimeDays,
@@ -128,11 +129,11 @@ function downloadFile(content: string, filename: string, mime: string) {
 // ── ProductForm ────────────────────────────────────────────────────
 type ProductFormData = Omit<Product, "id" | "images">;
 
-function makeEmptyForm(cats: DbCategory[], sups: DbSupplier[]): ProductFormData {
+function makeEmptyForm(cats: DbCategory[], sups: DbSupplier[], dbBrands: DbBrand[]): ProductFormData {
   return {
     name: "", sku: "", barcode: "", categoryId: cats[0]?.id ?? "",
     subcategory: "", manufacturer: "",
-    brandId: brands[0]?.id ?? "", unitId: units[0]?.id ?? "",
+    brandId: dbBrands[0]?.id ?? "", unitId: units[0]?.id ?? "",
     supplierId: sups[0]?.id ?? "", purchasePrice: 0, sellingPrice: 0,
     mrp: 0, costPrice: 0,
     taxPercent: 18, hsnCode: "", currentStock: 0, minStock: 0, maxStock: 0,
@@ -155,6 +156,7 @@ function ProductForm({
   saveError,
   dbCategories,
   dbSuppliers,
+  dbBrands,
 }: {
   initial: ProductFormData;
   isEdit: boolean;
@@ -164,6 +166,7 @@ function ProductForm({
   saveError: string | null;
   dbCategories: DbCategory[];
   dbSuppliers: DbSupplier[];
+  dbBrands: DbBrand[];
 }) {
   const [form, setForm] = useState<ProductFormData>(initial);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -277,7 +280,7 @@ function ProductForm({
               <label className={labelCls}>Brand</label>
               <select value={form.brandId} onChange={(e) => set("brandId", e.target.value)} className={selectCls}>
                 <option value="">— Select brand —</option>
-                {brands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                {dbBrands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
             <div>
@@ -483,6 +486,7 @@ function ProductDetailDialog({
   onEdit,
   dbCategories,
   dbSuppliers,
+  dbBrands,
 }: {
   product: Product | null;
   open: boolean;
@@ -490,10 +494,11 @@ function ProductDetailDialog({
   onEdit: (p: Product) => void;
   dbCategories: DbCategory[];
   dbSuppliers: DbSupplier[];
+  dbBrands: DbBrand[];
 }) {
   if (!product) return null;
   const cat = dbCategories.find((c) => c.id === product.categoryId);
-  const brand = getBrand(product.brandId);
+  const brand = dbBrands.find((item) => item.id === product.brandId);
   const unit = getUnit(product.unitId);
   const supplier = dbSuppliers.find((s) => s.id === product.supplierId);
   const stockStatus = getStockStatus(product);
@@ -656,6 +661,9 @@ export function ProductsTab() {
   const { data: dbProducts = [], isLoading: productsLoading } = useProducts(businessId);
   const { data: dbCategories = [] } = useCategories(businessId);
   const { data: dbSuppliers = [] } = useSuppliers(businessId);
+  const { data: activeBrands = [] } = useBrandOptions(businessId);
+  const { data: brandPage } = useBrands(businessId, { page: 1, pageSize: 100 });
+  const dbBrands = brandPage?.data ?? activeBrands;
 
   // Map DB rows to UI Product type
   const allProducts: Product[] = useMemo(
@@ -691,7 +699,7 @@ export function ProductsTab() {
   // Create / Edit dialog
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
-  const [formInitial, setFormInitial] = useState<ProductFormData>(() => makeEmptyForm(dbCategories, dbSuppliers));
+  const [formInitial, setFormInitial] = useState<ProductFormData>(() => makeEmptyForm(dbCategories, dbSuppliers, activeBrands));
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -704,7 +712,7 @@ export function ProductsTab() {
   ];
   const brandOptions = [
     { value: "all", label: "All Brands" },
-    ...brands.map((b) => ({ value: b.id, label: b.name })),
+    ...dbBrands.map((b) => ({ value: b.id, label: b.name })),
   ];
   const statusOptions = [
     { value: "all", label: "All Status" },
@@ -837,11 +845,11 @@ export function ProductsTab() {
 
   // Export
   function handleExportCSV() {
-    const csv = buildCSV(filtered, dbCategories, dbSuppliers);
+    const csv = buildCSV(filtered, dbCategories, dbSuppliers, dbBrands);
     downloadFile(csv, "products-export.csv", "text/csv;charset=utf-8;");
   }
   function handleExportExcel() {
-    const csv = buildCSV(filtered, dbCategories, dbSuppliers);
+    const csv = buildCSV(filtered, dbCategories, dbSuppliers, dbBrands);
     downloadFile(csv, "products-export.csv", "text/csv;charset=utf-8;");
   }
 
@@ -859,7 +867,7 @@ export function ProductsTab() {
   // Open create form
   function openCreate() {
     setFormMode("create");
-    setFormInitial(makeEmptyForm(dbCategories, dbSuppliers));
+    setFormInitial(makeEmptyForm(dbCategories, dbSuppliers, activeBrands));
     setEditingId(null);
     setSaveError(null);
     setFormOpen(true);
@@ -1043,7 +1051,7 @@ export function ProductsTab() {
             <TableBody>
               {pageRows.map((product, i) => {
                 const cat = dbCategories.find((c) => c.id === product.categoryId);
-                const brand = getBrand(product.brandId);
+                const brand = dbBrands.find((item) => item.id === product.brandId);
                 const supplier = dbSuppliers.find((s) => s.id === product.supplierId);
                 const stockStatus = getStockStatus(product);
                 const isSelected = selectedIds.has(product.id);
@@ -1149,6 +1157,7 @@ export function ProductsTab() {
           onEdit={openEdit}
           dbCategories={dbCategories}
           dbSuppliers={dbSuppliers}
+          dbBrands={dbBrands}
         />
 
         {/* Create / Edit Dialog */}
@@ -1170,6 +1179,7 @@ export function ProductsTab() {
               saveError={saveError}
               dbCategories={dbCategories}
               dbSuppliers={dbSuppliers}
+              dbBrands={activeBrands}
             />
           </DialogContent>
         </Dialog>
