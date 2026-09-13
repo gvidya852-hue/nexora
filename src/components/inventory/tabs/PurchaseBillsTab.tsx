@@ -2,13 +2,19 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Plus, FileText } from "lucide-react";
 import {
-  purchaseBills,
-  suppliers,
-  getSupplier,
   fmtINR,
   type PurchaseBill,
   type PaymentStatus,
 } from "@/lib/inventory-data";
+import { useBusiness } from "@/contexts/BusinessContext";
+import { useSuppliers } from "@/hooks/useProductsQuery";
+import {
+  useCreatePurchaseBill,
+  usePurchaseBills,
+  usePurchaseOrders,
+  useRecordPurchaseBillPayment,
+} from "@/hooks/usePurchaseFlowQuery";
+import { toast } from "sonner";
 import {
   SectionCard,
   StatusPill,
@@ -26,7 +32,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 
-const TODAY = "2026-07-13";
+const TODAY = new Date().toISOString().slice(0, 10);
 
 function derivePaymentStatus(amountPaid: number, total: number): PaymentStatus {
   if (amountPaid >= total) return "paid";
@@ -35,13 +41,19 @@ function derivePaymentStatus(amountPaid: number, total: number): PaymentStatus {
 }
 
 export function PurchaseBillsTab() {
-  const [bills, setBills] = useState<PurchaseBill[]>([...purchaseBills]);
+  const { business } = useBusiness();
+  const businessId = business?.id ?? null;
+  const { data: bills = [], isLoading } = usePurchaseBills(businessId);
+  const { data: dbSuppliers = [] } = useSuppliers(businessId);
+  const { data: orderData } = usePurchaseOrders(businessId);
+  const createMutation = useCreatePurchaseBill(businessId);
+  const paymentMutation = useRecordPurchaseBillPayment(businessId);
   const [createOpen, setCreateOpen] = useState(false);
   const [detailBill, setDetailBill] = useState<PurchaseBill | null>(null);
   const [paymentInput, setPaymentInput] = useState("");
 
   // Create form
-  const [formSupplier, setFormSupplier] = useState(suppliers[0].id);
+  const [formSupplier, setFormSupplier] = useState("");
   const [formPoNumber, setFormPoNumber] = useState("");
   const [formBillDate, setFormBillDate] = useState(TODAY);
   const [formDueDate, setFormDueDate] = useState("");
@@ -49,6 +61,10 @@ export function PurchaseBillsTab() {
   const [formGst, setFormGst] = useState("");
   const [formTotal, setFormTotal] = useState("");
   const [formAmountPaid, setFormAmountPaid] = useState("");
+
+  function getSupplier(id: string) {
+    return dbSuppliers.find((supplier) => supplier.id === id);
+  }
 
   function handleSubtotalChange(val: string) {
     setFormSubtotal(val);
@@ -58,46 +74,53 @@ export function PurchaseBillsTab() {
     setFormTotal(String(sub + gst));
   }
 
-  function handleCreate(e: React.FormEvent) {
+  async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     const total = parseFloat(formTotal) || 0;
     const amountPaid = parseFloat(formAmountPaid) || 0;
-    const newBill: PurchaseBill = {
-      id: `pb${Date.now()}`,
-      billNumber: `BILL-2026-${String(bills.length + 96).padStart(4, "0")}`,
-      poNumber: formPoNumber || "—",
-      supplierId: formSupplier,
-      billDate: formBillDate || TODAY,
-      dueDate: formDueDate || TODAY,
-      subtotal: parseFloat(formSubtotal) || 0,
-      gstAmount: parseFloat(formGst) || 0,
-      total,
-      paymentStatus: derivePaymentStatus(amountPaid, total),
-      amountPaid,
-    };
-    setBills((prev) => [newBill, ...prev]);
-    setCreateOpen(false);
-    setFormSupplier(suppliers[0].id);
-    setFormPoNumber("");
-    setFormBillDate(TODAY);
-    setFormDueDate("");
-    setFormSubtotal("");
-    setFormGst("");
-    setFormTotal("");
-    setFormAmountPaid("");
+    if (!businessId || !formSupplier || total <= 0) {
+      toast.error("Select a supplier and enter a bill total");
+      return;
+    }
+    try {
+      const linkedOrder = orderData?.orders.find((order) => order.poNumber === formPoNumber);
+      await createMutation.mutateAsync({
+        purchaseOrderId: linkedOrder?.id,
+        poNumber: formPoNumber || "—",
+        supplierId: formSupplier,
+        billDate: formBillDate || TODAY,
+        dueDate: formDueDate || TODAY,
+        subtotal: Math.max(0, parseFloat(formSubtotal) || 0),
+        gstAmount: Math.max(0, parseFloat(formGst) || 0),
+        total,
+        amountPaid: Math.max(0, Math.min(amountPaid, total)),
+      });
+      setCreateOpen(false);
+      setFormSupplier(dbSuppliers[0]?.id ?? "");
+      setFormPoNumber("");
+      setFormBillDate(TODAY);
+      setFormDueDate("");
+      setFormSubtotal("");
+      setFormGst("");
+      setFormTotal("");
+      setFormAmountPaid("");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create purchase bill");
+    }
   }
 
-  function recordPayment() {
+  async function recordPayment() {
     if (!detailBill) return;
     const additional = parseFloat(paymentInput) || 0;
     if (additional <= 0) return;
-    const newPaid = Math.min(detailBill.amountPaid + additional, detailBill.total);
-    const newStatus = derivePaymentStatus(newPaid, detailBill.total);
-    setBills((prev) =>
-      prev.map((b) => b.id === detailBill.id ? { ...b, amountPaid: newPaid, paymentStatus: newStatus } : b)
-    );
-    setDetailBill((prev) => prev ? { ...prev, amountPaid: newPaid, paymentStatus: newStatus } : prev);
-    setPaymentInput("");
+    try {
+      await paymentMutation.mutateAsync({ billId: detailBill.id, amount: Math.min(additional, detailBill.total - detailBill.amountPaid) });
+      setDetailBill(null);
+      setPaymentInput("");
+      toast.success("Payment recorded");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to record payment");
+    }
   }
 
   return (
@@ -112,7 +135,13 @@ export function PurchaseBillsTab() {
         }
         noPadding
       >
-        {bills.length === 0 ? (
+        {isLoading ? (
+          <div className="space-y-3 p-6">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="h-10 animate-pulse rounded-xl bg-slate-100" />
+            ))}
+          </div>
+        ) : bills.length === 0 ? (
           <EmptyState icon={FileText} title="No purchase bills" subtitle="Create your first purchase bill to get started." />
         ) : (
           <div className="overflow-x-auto">
@@ -173,7 +202,7 @@ export function PurchaseBillsTab() {
                 className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400"
                 required
               >
-                {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                {dbSuppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
             <div>
@@ -279,9 +308,9 @@ export function PurchaseBillsTab() {
                     <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
                       <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Vendor Details</p>
                       <p className="font-bold text-slate-800">{supplier.name}</p>
-                      <p className="text-xs text-slate-500">{supplier.contactPerson} · {supplier.phone}</p>
-                      <p className="text-xs text-slate-500">{supplier.email}</p>
-                      <p className="mt-1 text-xs text-slate-400">GST: {supplier.gstNumber}</p>
+                       <p className="text-xs text-slate-500">{supplier.contact_person ?? "—"} · {supplier.phone ?? "—"}</p>
+                       <p className="text-xs text-slate-500">{supplier.email ?? "—"}</p>
+                       <p className="mt-1 text-xs text-slate-400">GST: {supplier.gst_number ?? "—"}</p>
                     </div>
                   )}
 

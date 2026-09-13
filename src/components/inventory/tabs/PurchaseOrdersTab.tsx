@@ -2,17 +2,20 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Plus, X, ShoppingCart, ClipboardCheck, Clock, CheckCircle, Truck, PackageCheck, Package, Ban } from "lucide-react";
 import {
-  purchaseOrders,
-  goodsReceivedNotes,
-  suppliers,
-  products,
-  getSupplier,
-  getProduct,
   fmtINR,
   type PurchaseOrder,
   type PurchaseOrderItem,
   type POStatus,
 } from "@/lib/inventory-data";
+import { useBusiness } from "@/contexts/BusinessContext";
+import { useProducts, useSuppliers } from "@/hooks/useProductsQuery";
+import {
+  useCreatePurchaseOrder,
+  usePurchaseOrders,
+  useReceivePurchaseGoods,
+  useUpdatePurchaseOrder,
+} from "@/hooks/usePurchaseFlowQuery";
+import { toast } from "sonner";
 import {
   SectionCard,
   StatusPill,
@@ -31,7 +34,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 
-const TODAY = "2026-07-13";
+const TODAY = new Date().toISOString().slice(0, 10);
 
 function poTotal(items: PurchaseOrderItem[]) {
   return items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
@@ -62,7 +65,16 @@ interface GRNFormState {
 }
 
 export function PurchaseOrdersTab() {
-  const [orders, setOrders] = useState<PurchaseOrder[]>([...purchaseOrders]);
+  const { business } = useBusiness();
+  const businessId = business?.id ?? null;
+  const { data: orderData, isLoading } = usePurchaseOrders(businessId);
+  const { data: dbSuppliers = [] } = useSuppliers(businessId);
+  const { data: dbProducts = [] } = useProducts(businessId);
+  const createMutation = useCreatePurchaseOrder(businessId);
+  const updateMutation = useUpdatePurchaseOrder(businessId);
+  const receiveMutation = useReceivePurchaseGoods(businessId);
+  const orders = orderData?.orders ?? [];
+  const goodsReceivedNotes = orderData?.grns ?? [];
   const [activeFilter, setActiveFilter] = useState<POStatus | "all">("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [detailOrder, setDetailOrder] = useState<PurchaseOrder | null>(null);
@@ -85,14 +97,22 @@ export function PurchaseOrdersTab() {
   const [approvedByInput, setApprovedByInput] = useState("");
 
   // Create form state
-  const [formSupplier, setFormSupplier] = useState(suppliers[0].id);
+  const [formSupplier, setFormSupplier] = useState("");
   const [formExpected, setFormExpected] = useState("");
   const [formNotes, setFormNotes] = useState("");
   const [formSupplierNotes, setFormSupplierNotes] = useState("");
   const [formRefNumber, setFormRefNumber] = useState("");
   const [lineItems, setLineItems] = useState<{ productId: string; quantity: string; unitPrice: string }[]>([
-    { productId: products[0].id, quantity: "1", unitPrice: String(products[0].purchasePrice) },
+    { productId: "", quantity: "1", unitPrice: "0" },
   ]);
+
+  function findSupplier(id: string) {
+    return dbSuppliers.find((supplier) => supplier.id === id);
+  }
+
+  function findProduct(id: string) {
+    return dbProducts.find((product) => product.id === id);
+  }
 
   const filtered = activeFilter === "all" ? orders : orders.filter((o) => o.status === activeFilter);
 
@@ -107,7 +127,11 @@ export function PurchaseOrdersTab() {
   const monthValue = thisMonthValue(orders);
 
   function addLineItem() {
-    setLineItems((prev) => [...prev, { productId: products[0].id, quantity: "1", unitPrice: String(products[0].purchasePrice) }]);
+    const product = dbProducts[0];
+    setLineItems((prev) => [
+      ...prev,
+      { productId: product?.id ?? "", quantity: "1", unitPrice: String(product?.purchase_price ?? 0) },
+    ]);
   }
 
   function removeLineItem(idx: number) {
@@ -120,8 +144,8 @@ export function PurchaseOrdersTab() {
         if (i !== idx) return row;
         const updated = { ...row, [field]: val };
         if (field === "productId") {
-          const p = getProduct(val);
-          if (p) updated.unitPrice = String(p.purchasePrice);
+          const p = findProduct(val);
+          if (p) updated.unitPrice = String(p.purchase_price);
         }
         return updated;
       })
@@ -136,62 +160,75 @@ export function PurchaseOrdersTab() {
     }, 0);
   }
 
-  function buildNewOrder(status: POStatus): PurchaseOrder {
-    const id = `po${Date.now()}`;
-    const poNumber = `PO-2026-${String(orders.length + 47).padStart(4, "0")}`;
-    return {
-      id,
-      poNumber,
-      supplierId: formSupplier,
-      status,
-      createdDate: TODAY,
-      expectedDate: formExpected || TODAY,
-      items: lineItems.map((row) => ({
-        productId: row.productId,
-        quantity: parseFloat(row.quantity) || 1,
-        receivedQty: 0,
-        unitPrice: parseFloat(row.unitPrice) || 0,
-      })),
-      notes: formNotes,
-      supplierNotes: formSupplierNotes || undefined,
-      referenceNumber: formRefNumber || undefined,
-    };
-  }
-
   function resetCreateForm() {
-    setFormSupplier(suppliers[0].id);
+    const product = dbProducts[0];
+    setFormSupplier(dbSuppliers[0]?.id ?? "");
     setFormExpected("");
     setFormNotes("");
     setFormSupplierNotes("");
     setFormRefNumber("");
-    setLineItems([{ productId: products[0].id, quantity: "1", unitPrice: String(products[0].purchasePrice) }]);
+    setLineItems([{ productId: product?.id ?? "", quantity: "1", unitPrice: String(product?.purchase_price ?? 0) }]);
   }
 
-  function handleCreate(e: React.FormEvent, status: POStatus = "pending-approval") {
+  async function handleCreate(e: React.FormEvent, status: POStatus = "pending-approval") {
     e.preventDefault();
-    const newOrder = buildNewOrder(status);
-    setOrders((prev) => [newOrder, ...prev]);
-    setCreateOpen(false);
-    resetCreateForm();
+    if (!businessId || !formSupplier || lineItems.some((row) => !row.productId)) {
+      toast.error("Select a supplier and at least one product");
+      return;
+    }
+    try {
+      await createMutation.mutateAsync({
+        supplierId: formSupplier,
+        status,
+        expectedDate: formExpected || TODAY,
+        notes: formNotes,
+        supplierNotes: formSupplierNotes,
+        referenceNumber: formRefNumber,
+        items: lineItems.map((row) => ({
+          productId: row.productId,
+          quantity: Math.max(1, parseInt(row.quantity) || 1),
+          unitPrice: Math.max(0, parseFloat(row.unitPrice) || 0),
+        })),
+      });
+      setCreateOpen(false);
+      resetCreateForm();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create purchase order");
+    }
   }
 
-  function transitionStatus(id: string, next: POStatus, extra?: Partial<PurchaseOrder>) {
-    setOrders((prev) =>
-      prev.map((o) => (o.id === id ? { ...o, status: next, ...extra } : o))
-    );
-    setDetailOrder((prev) =>
-      prev && prev.id === id ? { ...prev, status: next, ...extra } : prev
-    );
+  async function transitionStatus(
+    id: string,
+    next: POStatus,
+    extra?: { approvedBy?: string | null; approvedDate?: string | null; referenceNumber?: string | null }
+  ) {
+    if (!businessId) return;
+    try {
+      await updateMutation.mutateAsync({ id, patch: { status: next, ...extra } });
+      setDetailOrder((prev) =>
+        prev && prev.id === id
+          ? {
+              ...prev,
+              status: next,
+              approvedBy: extra?.approvedBy ?? prev.approvedBy,
+              approvedDate: extra?.approvedDate ?? prev.approvedDate,
+              referenceNumber: extra?.referenceNumber ?? prev.referenceNumber,
+            }
+          : prev
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update purchase order");
+    }
   }
 
   function handleSubmitForApproval() {
     if (!detailOrder) return;
-    transitionStatus(detailOrder.id, "pending-approval");
+    void transitionStatus(detailOrder.id, "pending-approval");
   }
 
   function handleApprove() {
     if (!detailOrder) return;
-    transitionStatus(detailOrder.id, "approved", {
+    void transitionStatus(detailOrder.id, "approved", {
       approvedBy: approvedByInput || "Current User",
       approvedDate: TODAY,
     });
@@ -201,13 +238,13 @@ export function PurchaseOrdersTab() {
 
   function handleReject() {
     if (!detailOrder) return;
-    transitionStatus(detailOrder.id, "cancelled");
+    void transitionStatus(detailOrder.id, "cancelled");
   }
 
   function handleMarkOrdered() {
     if (!detailOrder) return;
-    transitionStatus(detailOrder.id, "ordered", {
-      referenceNumber: orderRefInput || undefined,
+    void transitionStatus(detailOrder.id, "ordered", {
+      referenceNumber: orderRefInput || null,
     });
     setOrderRefOpen(false);
     setOrderRefInput("");
@@ -224,28 +261,32 @@ export function PurchaseOrdersTab() {
     setGrnOpen(true);
   }
 
-  function handleGRNSubmit(e: React.FormEvent) {
+  async function handleGRNSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!detailOrder) return;
-
-    const updatedItems = detailOrder.items.map((item) => {
-      const nowReceiving = parseInt(grnForm.quantities[item.productId] ?? "0") || 0;
-      const prevReceived = item.receivedQty ?? 0;
-      return { ...item, receivedQty: prevReceived + nowReceiving };
-    });
-
-    const allReceived = updatedItems.every((item) => (item.receivedQty ?? 0) >= item.quantity);
-    const nextStatus: POStatus = allReceived ? "received" : "partially-received";
-
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === detailOrder.id ? { ...o, items: updatedItems, status: nextStatus } : o
-      )
-    );
-    setDetailOrder((prev) =>
-      prev && prev.id === detailOrder.id ? { ...prev, items: updatedItems, status: nextStatus } : prev
-    );
-    setGrnOpen(false);
+    const items = detailOrder.items
+      .map((item) => ({
+        purchaseOrderItemId: detailOrder.itemIds?.[item.productId] ?? "",
+        receivedQty: parseInt(grnForm.quantities[item.productId] ?? "0") || 0,
+      }))
+      .filter((item) => item.purchaseOrderItemId && item.receivedQty > 0);
+    if (!items.length) {
+      toast.error("Enter at least one received quantity");
+      return;
+    }
+    try {
+      await receiveMutation.mutateAsync({
+        orderId: detailOrder.id,
+        receivedBy: grnForm.receivedBy,
+        referenceNumber: grnForm.referenceNumber,
+        notes: grnForm.notes,
+        items,
+      });
+      setGrnOpen(false);
+      setDetailOrder(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to record goods receipt");
+    }
   }
 
   return (
@@ -325,7 +366,13 @@ export function PurchaseOrdersTab() {
         </div>
 
         {/* Table */}
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          <div className="space-y-3 p-6">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="h-10 animate-pulse rounded-xl bg-slate-100" />
+            ))}
+          </div>
+        ) : filtered.length === 0 ? (
           <EmptyState icon={ShoppingCart} title="No purchase orders" subtitle="Create your first purchase order to get started." />
         ) : (
           <div className="overflow-x-auto">
@@ -341,7 +388,7 @@ export function PurchaseOrdersTab() {
               </thead>
               <tbody>
                 {filtered.map((order, i) => {
-                  const supplier = getSupplier(order.supplierId);
+                  const supplier = findSupplier(order.supplierId);
                   const total = poTotal(order.items);
                   return (
                     <motion.tr
@@ -392,7 +439,7 @@ export function PurchaseOrdersTab() {
                   className="h-9 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-blue-400"
                   required
                 >
-                  {suppliers.map((s) => (
+                  {dbSuppliers.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.name}
                     </option>
@@ -465,7 +512,7 @@ export function PurchaseOrdersTab() {
                       onChange={(e) => updateLineItem(idx, "productId", e.target.value)}
                       className="flex-1 h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs outline-none"
                     >
-                      {products.map((p) => (
+                      {dbProducts.map((p) => (
                         <option key={p.id} value={p.id}>
                           {p.name}
                         </option>
@@ -654,7 +701,7 @@ export function PurchaseOrdersTab() {
                     </thead>
                     <tbody>
                       {detailOrder.items.map((item) => {
-                        const product = getProduct(item.productId);
+                        const product = findProduct(item.productId);
                         const prevReceived = item.receivedQty ?? 0;
                         const remaining = item.quantity - prevReceived;
                         return (
@@ -711,7 +758,7 @@ export function PurchaseOrdersTab() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           {detailOrder &&
             (() => {
-              const supplier = getSupplier(detailOrder.supplierId);
+              const supplier = findSupplier(detailOrder.supplierId);
               const total = poTotal(detailOrder.items);
               const relatedGRNs = goodsReceivedNotes.filter((g) => g.poId === detailOrder.id);
               return (
@@ -760,12 +807,12 @@ export function PurchaseOrdersTab() {
                         <p className="mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Supplier</p>
                         <p className="font-semibold text-slate-800">{supplier.name}</p>
                         <p className="text-xs text-slate-500">
-                          {supplier.contactPerson} · {supplier.phone}
+                           {supplier.contact_person ?? "—"} · {supplier.phone ?? "—"}
                         </p>
                         <p className="text-xs text-slate-500">
-                          {supplier.email} · {supplier.city}
+                           {supplier.email ?? "—"} · {supplier.city ?? "—"}
                         </p>
-                        <p className="mt-1 text-xs text-slate-400">GST: {supplier.gstNumber}</p>
+                         <p className="mt-1 text-xs text-slate-400">GST: {supplier.gst_number ?? "—"}</p>
                       </div>
                     )}
 
@@ -783,7 +830,7 @@ export function PurchaseOrdersTab() {
                         </thead>
                         <tbody>
                           {detailOrder.items.map((item, i) => {
-                            const product = getProduct(item.productId);
+                            const product = findProduct(item.productId);
                             const received = item.receivedQty ?? 0;
                             const pct = item.quantity > 0 ? Math.min(100, Math.round((received / item.quantity) * 100)) : 0;
                             return (

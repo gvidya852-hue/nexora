@@ -10,3 +10,4 @@
 - [Nexora Recurring Invoices module](nexora-recurring-module.md) — fully Supabase-backed; schema in schema_recurring.sql (not yet applied); generateInvoice() ready for scheduler; DbProduct uses tax_rate not gst_percent.
 - [Nexora Payments module](nexora-payments-module.md) — fully Supabase-backed; schema in schema_payments.sql (not yet applied); auto-updates invoice amount_paid + payment_status on create/refund/void/delete.
 - [Nexora Templates module](nexora-templates-module.md) — fully Supabase-backed; schema in schema_templates.sql; supabase is a Proxy object (not callable), use supabase.from() not supabase().from().
+- [Nexora Purchase Flow](nexora-purchase-flow.md) — Purchase Orders, atomic goods receipts, stock-trigger integration, supplier payables, and purchase-bill payments.

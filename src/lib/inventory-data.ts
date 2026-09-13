@@ -150,6 +150,8 @@ export interface PurchaseOrder {
   createdDate: string;
   expectedDate: string;
   items: PurchaseOrderItem[];
+  /** Database item IDs used when recording a goods receipt. */
+  itemIds?: Record<string, string>;
   notes: string;
   supplierNotes?: string;
   approvedBy?: string;
@@ -173,6 +175,7 @@ export interface PurchaseBill {
   id: string;
   billNumber: string;
   poNumber: string;
+  purchaseOrderId?: string;
   supplierId: string;
   billDate: string;
   dueDate: string;
